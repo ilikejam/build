@@ -1,0 +1,31 @@
+(setq select-active-regions nil)
+(setq mouse-drag-copy-region t)
+(setq inhibit-splash-screen t)
+(setq initial-scratch-message "")
+(column-number-mode 1)
+(setq-default indent-tabs-mode nil)
+
+(global-set-key [mouse-2] 'mouse-yank-at-click)
+
+(add-to-list 'load-path "~/.emacs.d")
+
+(set-default buffer-file-coding-system 'utf-8-unix)
+(set-default default-buffer-file-coding-system 'utf-8-unix)
+(set-default-coding-systems 'utf-8-unix)
+(set-default-font "-outline-Courier New-normal-r-normal-normal-12-97-96-96-c-*-iso8859-1")
+(prefer-coding-system 'utf-8-unix)
+
+(autoload 'puppet-mode "puppet-mode" "Major mode for editing Puppet files" t)
+(autoload 'markdown-mode "markdown-mode" "Major mode for editing Markdown files" t)
+(autoload 'gfm-mode "markdown-mode" "Major mode for editing Git Markdown files" t)
+
+(require 'yaml-mode)
+
+(add-to-list 'auto-mode-alist '("\\.text\\'" . markdown-mode))
+(add-to-list 'auto-mode-alist '("\\.markdown\\'" . gfm-mode))
+(add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-mode))
+(add-to-list 'auto-mode-alist '("\\.org$" . org-mode))
+(add-to-list 'auto-mode-alist '("\\.pp$" . puppet-mode))
+(add-to-list 'auto-mode-alist '("Vagrantfile" . ruby-mode))
+(add-to-list 'auto-mode-alist '("\\.yaml$" . yaml-mode))
+(add-to-list 'auto-mode-alist '("\\.yml$" . yaml-mode))
