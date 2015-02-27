@@ -1,0 +1,60 @@
+#!/bin/bash
+
+err=0
+VPATH=~/vagrant
+PUPPET=puppet
+if [ `uname -o` == 'Cygwin' ]
+then
+    PUPPET='/cygdrive/c/Program Files (x86)/Puppet Labs/Puppet/bin/puppet.bat'
+fi
+
+while read file
+do
+    echo "Linting $file"
+    dos2unix "$file" &> /dev/null
+    sed -i 's/^[[:space:]]$//' "$file"
+    sed -i 's/[[:space:]][[:space:]]*$//' "$file"
+    puppet-lint --no-80chars-check --with-filename --no-class_inherits_from_params_class-check --fail-on-warnings "$file" || exit 1
+    "${PUPPET}" parser validate "$file" || exit 1
+done < <(git diff --name-status --diff-filter=AM --cached  | sed 's/^[A|M][[:space:]]*//' | egrep '\.pp$')
+
+while read file
+do
+    echo "Linting $file"
+    dos2unix "$file" &> /dev/null
+    erb -x -T - "$file" | ruby -c > /dev/null || exit 1
+done < <(git diff --name-status --diff-filter=AM --cached  | sed 's/^[A|M][[:space:]]*//' | egrep '\.erb$')
+
+rsync -av --delete --exclude .git ./ "$VPATH"/modules || ((err+=1))
+rsync -av --delete --exclude .git ~/git/hieradata/ ~/vagrant/hieradata || ((err+=1))
+
+if [ $err -ne 0 ]
+then
+    exit 1
+fi
+
+
+for VM in moduletest6 moduletest7
+do
+    cd "$VPATH"
+    case `vagrant status "$VM" | grep '^'"$VM" | awk '{print $2}'` in
+        running)
+            vagrant provision "$VM"
+            ((err+=$?))
+	    ;;
+        poweroff|aborted)
+            vagrant up --provision "$VM"
+            ((err+=$?))
+            ;;
+        not)
+            vagrant up "$VM"
+            ((err+=$?))
+            ;;
+        *)
+            echo "Vagrant VM $VM seems to be in a weird state. Doing fuck all."
+            ((err+=1))
+            ;;
+    esac
+done
+
+exit $err
