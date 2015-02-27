@@ -1,0 +1,5 @@
+Host *+*
+  ProxyCommand ssh $(echo %h | sed 's/+[^+]*$//;s/\([^+%%]*\)%%\([^+]*\)$/\2 -l \1/;s/:/ -p /') "nc $(echo %h | sed 's/^.*+//;/:/!s/$/ %p/;s/:/ /')"
+
+Host github.com
+  IdentityFile ~/.ssh/id_rsa.github
