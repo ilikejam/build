@@ -20,6 +20,7 @@
 (autoload 'gfm-mode "markdown-mode" "Major mode for editing Git Markdown files" t)
 
 (require 'yaml-mode)
+(require 'web-mode)
 
 (add-to-list 'auto-mode-alist '("\\.text\\'" . markdown-mode))
 (add-to-list 'auto-mode-alist '("\\.markdown\\'" . gfm-mode))
@@ -29,3 +30,4 @@
 (add-to-list 'auto-mode-alist '("Vagrantfile" . ruby-mode))
 (add-to-list 'auto-mode-alist '("\\.yaml$" . yaml-mode))
 (add-to-list 'auto-mode-alist '("\\.yml$" . yaml-mode))
+(add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
