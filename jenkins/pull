@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cd modules && git fetch  && git checkout origin/dev && git clean -f -d
+cd ../hieradata && git fetch  && git checkout origin/master && git clean -f -d
