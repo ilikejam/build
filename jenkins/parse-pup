@@ -1,0 +1,16 @@
+#!/bin/bash
+
+unset GEM_HOME
+unset MY_RUBY_HOME
+unset GEM_PATH
+unset RUBY_VERSION
+
+PATH=/usr/bin:/bin
+
+cd puppet-modules || exit 1
+
+while read file
+do
+    echo "Parsing $file"
+    puppet parser validate "$file" || exit 1
+done < <(find bskyb -name '*.pp' | sort)
