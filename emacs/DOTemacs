@@ -18,10 +18,13 @@
 (autoload 'puppet-mode "puppet-mode" "Major mode for editing Puppet files" t)
 (autoload 'markdown-mode "markdown-mode" "Major mode for editing Markdown files" t)
 (autoload 'gfm-mode "markdown-mode" "Major mode for editing Git Markdown files" t)
+(autoload 'puppetfile-mode "puppetfile-mode" "Major mode for editing r10k Puppefile files")
 
 (require 'yaml-mode)
 (require 'web-mode)
 
+
+(add-to-list 'auto-mode-alist '("Puppetfile\\'" . puppetfile-mode))
 (add-to-list 'auto-mode-alist '("\\.text\\'" . markdown-mode))
 (add-to-list 'auto-mode-alist '("\\.markdown\\'" . gfm-mode))
 (add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-mode))
