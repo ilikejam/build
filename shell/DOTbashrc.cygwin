@@ -1,0 +1,19 @@
+. $HOME/.keychain/`hostname`-sh
+export DISPLAY=:0.0
+$HOME/bin/cssh-fix-res
+export VIRTUAL_BOX_FOLDER=/cygdrive/c/Users/das18/Downloads/VBOX
+export VAGRANT_CWD='C:\Users\das18\Documents\vagrant'
+LESSHISTFILE=/dev/null
+export LESSHISTFILE
+
+source ~/.git-completion.bash
+source ~/.vagrant-completion.bash
+
+alias emacs='HOME="" /cygdrive/c/Users/das18/emacs-24.3/bin/runemacs.exe'
+alias vagrant='CYGWIN=nodosfilewarning vagrant'
+alias pemacs='for go in *.pp; do emacs "$go"; done'
+
+PS1='\[\e]0;\w\a\]\[\e[32m\]\u@\h \[\e[33m\]\w\[\e[0m\]\$ '
+
+PERL_MB_OPT="--install_base \"/cygdrive/c/Users/das18/Documents/perl5\""; export PERL_MB_OPT;
+PERL_MM_OPT="INSTALL_BASE=/cygdrive/c/Users/das18/Documents/perl5"; export PERL_MM_OPT;
