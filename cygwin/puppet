@@ -1,0 +1,16 @@
+#!/bin/bash
+
+i=0
+declare -a args
+for arg in "$@" 
+do
+    if [[ $arg == "/cygdrive/"* ]]
+    then
+        args[$i]="$(cygpath -w "$arg")"
+    else
+        args[$i]="$arg"
+    fi
+    ((i++))
+done
+
+"/cygdrive/c/Program Files/Puppet Labs/Puppet/bin/puppet.bat" "${args[@]}"
