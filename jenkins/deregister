@@ -1,0 +1,4 @@
+#!/bin/bash
+
+vagrant ssh moduletest6 -c "sudo subscription-manager unregister"
+exit 0
