@@ -1,0 +1,6 @@
+0a1
+> require 'shellwords'
+76c77
+<     output = git %w[for-each-ref refs/heads --format %(refname)], :git_dir => git_dir
+---
+>     output = git ['for-each-ref', 'refs/heads', '--format', '%(refname)'.shellescape], :git_dir => git_dir
