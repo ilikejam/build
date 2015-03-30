@@ -1,0 +1,9 @@
+#!/bin/bash
+
+cd puppet-modules || exit 1
+
+while read file
+do
+    echo "Parsing $file"
+    erb -x -T - "$file" | ruby -c > /dev/null || exit 1
+done < <(find bskyb -name '*.erb' | sort)
