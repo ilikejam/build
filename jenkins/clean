@@ -1,0 +1,26 @@
+#!/bin/bash
+
+VM=moduletest6
+
+case `vagrant status "$VM" | grep '^'"$VM" | awk '{print $2}'` in
+     running)
+	echo "clean: Destroying $VM vm"
+        vagrant destroy -f "$VM"
+        err=$?
+	;;
+    poweroff|aborted)
+	echo "clean: Destroying $VM vm"
+        vagrant destroy -f "$VM"
+        err=$?
+        ;;
+    not)
+        echo "clean: VM not defined, nothing to clean"
+        err=$?
+        ;;
+    *)
+        echo "Vagrant VM $VM seems to be in a weird state. Doing fuck all."
+        err=1
+        ;;
+esac
+
+exit $err
