@@ -3,12 +3,24 @@ VAGRANTFILE_API_VERSION = "2"
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.ssh.insert_key = false
+  config.vm.provision "shell", inline: "ip route add 10.105.16.253/32 via `ip route | grep eth1 | grep via | awk '{print $3}' | head -1` dev eth1; true"
+  config.vm.provision "shell", inline: "ip route add 10.105.16.64/32 via `ip route | grep eth1 | grep via | awk '{print $3}' | head -1` dev eth1; true"
+  config.vm.provision "puppet" do |puppet|
+    puppet.manifests_path    = "manifests"
+    puppet.manifest_file     = "test.pp"
+    #puppet.manifest_file     = "corp.pp"
+    puppet.module_path       = [ "modules/dev" ]
+    puppet.options           = [ "--debug --verbose --disable_warnings=deprecations " ]
+    puppet.hiera_config_path = "hieradata/hiera.yaml"
+  end
+  config.vm.provision "shell", inline: "subscription-manager unregister; true", upload_path: "/vagrant-home/vagrant-shell"
+  config.vm.provision "shell", inline: "rm -f /etc/facter/facts.d/katello*", upload_path: "/vagrant-home/vagrant-shell2"
   
   config.vm.define "moduletest7" do |node|
     node.vm.box = "base_rhel7.1_v1"
     node.vm.box_url = "http://upbld050/pub/vagrant/base_rhel7.1_v1.box"
     node.vm.synced_folder "hieradata/", "/etc/puppet/hieradata"
-    node.vm.hostname = "vagrant.bskyb.com"
+    node.vm.hostname = "vagrant.ilikejam.org"
     node.vm.provider "virtualbox" do |v|
       v.customize [ "modifyvm", :id, "--cpus", "1" ]
       v.customize [ "modifyvm", :id, "--memory", "2048" ]
@@ -17,26 +29,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       v.gui = true
     end
     node.vm.network "public_network"
-    config.vm.provision "shell", inline: "ip route add 10.105.16.253/32 via `ip route | grep eth1 | grep via | awk '{print $3}' | head -1` dev eth1; true"
-    config.vm.provision "shell", inline: "ip route add 10.105.16.64/32 via `ip route | grep eth1 | grep via | awk '{print $3}' | head -1` dev eth1; true"
-    config.vm.provision "puppet" do |puppet|
-      puppet.manifests_path    = "manifests"
-      #puppet.manifest_file     = "test.pp"
-      puppet.manifest_file     = "corp.pp"
-      #puppet.module_path       = [ "modules/dev" ]
-      puppet.module_path       = [ "modules/prd" ]
-      puppet.options           = [ "--debug --verbose --disable_warnings=deprecations --graph " ]
-      puppet.hiera_config_path = "hieradata/hiera.yaml"
-    end
-    config.vm.provision "shell", inline: "subscription-manager unregister; true", upload_path: "/vagrant-home/vagrant-shell"
-    config.vm.provision "shell", inline: "rm -f /etc/facter/facts.d/katello*", upload_path: "/vagrant-home/vagrant-shell2"
   end
 
   config.vm.define "moduletest6" do |node|
     node.vm.box = "base_rhel6.6_v3"
     node.vm.box_url = "http://upbld050/pub/vagrant/base_rhel6.6_v3.box"
     node.vm.synced_folder "hieradata/", "/etc/puppet/hieradata"
-    node.vm.hostname = "vagrant.bskyb.com"
+    node.vm.hostname = "vagrant.ilikejam.org"
     node.vm.provider "virtualbox" do |v|
       v.customize [ "modifyvm", :id, "--cpus", "1" ]
       v.customize [ "modifyvm", :id, "--memory", "2048" ]
@@ -45,17 +44,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       v.gui = true
     end
     node.vm.network "public_network"
-    config.vm.provision "puppet" do |puppet|
-      puppet.manifests_path    = "manifests"
-      #puppet.manifest_file     = "test.pp"
-      puppet.manifest_file     = "corp.pp"
-      #puppet.module_path       = [ "modules/dev" ]
-      puppet.module_path       = [ "modules/prd" ]
-      puppet.options           = [ "--debug --verbose --disable_warnings=deprecations --graph " ]
-      puppet.hiera_config_path = "hieradata/hiera.yaml"
-    end
-    config.vm.provision "shell", inline: "subscription-manager unregister; true", upload_path: "/vagrant-home/vagrant-shell"
-    config.vm.provision "shell", inline: "rm -f /etc/facter/facts.d/katello*", upload_path: "/vagrant-home/vagrant-shell2"
   end
 
 end
