@@ -1,0 +1,85 @@
+#!/bin/bash -x
+# This is not a git hook - run before commiting.
+
+set -e
+
+if [ $# -eq 0 ]
+then
+    unset VMS
+elif [[ $1 == "all" ]]
+then
+    VMS="moduletest6 moduletest7"
+else
+    VMS="$@"
+fi
+
+err=0
+export VPATH=~/vagrant
+[ `uname -o` == 'Cygwin' ] && PUPPET='/cygdrive/c/Program Files/Puppet Labs/Puppet/bin/puppet.bat' || PUPPET=puppet
+export PUPPET
+PUPPETFILE=~/git/r10k/Puppetfile
+MODULES=~/git/puppet-modules
+HIERA=~/git/hieradata
+
+cd "$MODULES"
+for dir in *
+do
+    if [ -d "$dir" ]
+    then
+
+        cd "$dir"
+
+        while read file
+        do
+            echo "Linting $file"
+            dos2unix "$file" &> /dev/null
+            sed -i 's/^[[:space:]]$//' "$file"
+            sed -i 's/[[:space:]][[:space:]]*$//' "$file"
+            puppet-lint --no-80chars-check --with-filename --no-class_inherits_from_params_class-check --fail-on-warnings "$file"
+            "${PUPPET}" parser validate "$file"
+        done < <(git diff --name-status --diff-filter=AM  | sed 's/^[A|M][[:space:]]*//' | egrep '\.pp$')
+
+        while read file
+        do
+            echo "Linting $file"
+            dos2unix "$file" &> /dev/null
+            erb -x -T - "$file" | ruby -c > /dev/null
+        done < <(git diff --name-status --diff-filter=AM | sed 's/^[A|M][[:space:]]*//' | egrep '\.erb$')
+        
+        cd ..
+
+    fi
+done
+
+if [ -n "$VMS" ]
+then
+
+    cd "$VPATH"
+    # Grab current Puppetfile and parse out git repos (i.e. leave forge mods only)
+    # This will break of we start using git remotes. Be warned.
+    sed ':loop; /, *$/ {N; s/, *\n *:/, :/}; t loop ' "$PUPPETFILE" | grep -v ':git *=>' > Puppetfile
+    r10k puppetfile install -v
+    r10k puppetfile purge -v
+    rsync -av --exclude .git "$MODULES"/ "$VPATH"/modules
+    rsync -av --delete --exclude .git "$HIERA"/ "$VPATH"/hieradata
+
+    for VM in $VMS
+    do
+        cd "$VPATH"
+        case `vagrant status "$VM" | grep '^'"$VM" | awk '{print $2}'` in
+            running)
+                vagrant provision "$VM"
+	        ;;
+            poweroff|aborted)
+                vagrant up --provision "$VM"
+                ;;
+            not)
+                vagrant up "$VM"
+                ;;
+            *)
+                echo "Vagrant VM $VM seems to be in a weird state, or isn't configured. Doing nothing."
+                ;;
+        esac
+    done
+
+fi
