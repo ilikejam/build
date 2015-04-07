@@ -58,13 +58,21 @@ if [ -n "$VMS" ]
 then
     # Test basic connectivity to the forge.
     curl -f 'https://forge.puppetlabs.com/puppetlabs/stdlib' > /dev/null
+
     cd "$VPATH"
-    # Grab current Puppetfile and parse out git repos (i.e. leave forge mods only)
-    # This will break of we start using git remotes. Be warned.
+    # Grab current Puppetfile and drop the git repos (i.e. leave forge mods only)
+    # This will break if we start using git-provided remotes. Be warned.
     sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" | grep -v ':git[[:space:]]*=>' > Puppetfile
     r10k puppetfile install -v
     r10k puppetfile purge -v
-    rsync -av --exclude .git "$MODULES"/ "$VPATH"/modules
+    # Grab current Puppetfile and drop the forge repos (i.e. leave git mods only)
+    # This will break if we start using git-provided remotes. Be warned.
+    # Can't use r10k for the git repos as we're pre-commit/push
+    modules=$(sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" | grep ':git[[:space:]]*=>' | awk -F',' '{print $1}' | sed "s/mod[[:space:]]*[\'|\"]//; s/[\'|\"][[:space:]]*$//")
+    for mod in $modules
+    do
+        rsync -av --delete --exclude .git "$MODULES"/"$mod" "$VPATH"/modules
+    done
     rsync -av --delete --exclude .git "$HIERA"/ "$VPATH"/hieradata
 
     for VM in $VMS
