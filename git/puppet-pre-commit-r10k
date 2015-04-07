@@ -1,5 +1,10 @@
 #!/bin/bash -x
 # This is not a git hook - run before commiting.
+# Run with no args to lint .pp and .erb files.
+# Run as "$0 all" to provision vms listed in ALLVMS.
+# Run as "$0 <vm> ..." to provison a set of vms.
+
+ALLVMS="moduletest6 moduletest7"
 
 set -e
 
@@ -8,13 +13,13 @@ then
     unset VMS
 elif [[ $1 == "all" ]]
 then
-    VMS="moduletest6 moduletest7"
+    VMS="$ALLVMS"
 else
     VMS="$@"
 fi
 
 err=0
-export VPATH=~/vagrant
+VPATH=~/vagrant
 [ `uname -o` == 'Cygwin' ] && PUPPET='/cygdrive/c/Program Files/Puppet Labs/Puppet/bin/puppet.bat' || PUPPET=puppet
 export PUPPET
 PUPPETFILE=~/git/r10k/Puppetfile
@@ -26,7 +31,6 @@ for dir in *
 do
     if [ -d "$dir" ]
     then
-
         cd "$dir"
 
         while read file
@@ -47,17 +51,15 @@ do
         done < <(git diff --name-status --diff-filter=AM | sed 's/^[A|M][[:space:]]*//' | egrep '\.erb$')
         
         cd ..
-
     fi
 done
 
 if [ -n "$VMS" ]
 then
-
     cd "$VPATH"
     # Grab current Puppetfile and parse out git repos (i.e. leave forge mods only)
     # This will break of we start using git remotes. Be warned.
-    sed ':loop; /, *$/ {N; s/, *\n *:/, :/}; t loop ' "$PUPPETFILE" | grep -v ':git *=>' > Puppetfile
+    sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" | grep -v ':git *=>' > Puppetfile
     r10k puppetfile install -v
     r10k puppetfile purge -v
     rsync -av --exclude .git "$MODULES"/ "$VPATH"/modules
@@ -81,5 +83,4 @@ then
                 ;;
         esac
     done
-
 fi
