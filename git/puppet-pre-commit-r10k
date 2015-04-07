@@ -39,7 +39,8 @@ do
             dos2unix "$file" &> /dev/null
             sed -i 's/^[[:space:]]$//' "$file"
             sed -i 's/[[:space:]][[:space:]]*$//' "$file"
-            puppet-lint --no-80chars-check --with-filename --no-class_inherits_from_params_class-check --fail-on-warnings "$file"
+            puppet-lint --no-80chars-check --with-filename --no-class_inherits_from_params_class-check \
+                --fail-on-warnings "$file"
             "${PUPPET}" parser validate "$file"
         done < <(git diff --name-status --diff-filter=AM  | sed 's/^[A|M][[:space:]]*//' | egrep '\.pp$')
 
@@ -62,13 +63,20 @@ then
     cd "$VPATH"
     # Grab current Puppetfile and drop the git repos (i.e. leave forge mods only)
     # This will break if we start using git-provided remotes. Be warned.
-    sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" | grep -v ':git[[:space:]]*=>' > Puppetfile
+    sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+        | grep -v ':git[[:space:]]*=>' > Puppetfile
+
     r10k puppetfile install -v
     r10k puppetfile purge -v
+
     # Grab current Puppetfile and drop the forge repos (i.e. leave git mods only)
     # This will break if we start using git-provided remotes. Be warned.
     # Can't use r10k for the git repos as we're pre-commit/push
-    modules=$(sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" | grep ':git[[:space:]]*=>' | awk -F',' '{print $1}' | sed "s/mod[[:space:]]*[\'|\"]//; s/[\'|\"][[:space:]]*$//")
+    modules=$(sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+        | grep ':git[[:space:]]*=>' \
+        | awk -F ',' '{print $1}' \
+        | sed "s/mod[[:space:]]*[\'|\"]//; s/[\'|\"][[:space:]]*$//")
+
     for mod in $modules
     do
         rsync -av --delete --exclude .git "$MODULES"/"$mod" "$VPATH"/modules
