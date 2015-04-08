@@ -1,21 +1,38 @@
 #!/bin/bash
-set -e
-BASE=~/git/puppet-modules
-USER=ilikejam
+set -e # Don't remove
+BASE=~/git/puppet-modules # Containing directory for new module
+USER='vdc' # Module 'creator' name
+GHOST='gitlab.local.net' # gitlab hostname
+GUSER='git' # gitlab user
+GGROUPNAME='my-org-puppet' # Gitlab group
+GTOKEN='abcdefghijklmnopqrs' # Your gitlab user token (secret!)
+JTOKEN='letmeinalready' # jenkins token for CI project
+JURL='http://jenkins.local.net/jenkins/job/Puppet%20Code/job/puppet-lint' # Full Jenkins project URL for CI API access
+
+export PERL5LIB=/cygdrive/c/Users/das18/Documents/perl5/lib/perl5 # Weird cygwin CPAN shenanigans
 
 [ $# -ne 1 ] && exit 1
 
 MODNAME=$(echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z_]//g')
 
-if [ ! -d "$BASE"/"$MODNAME" ]
+if [ -d "$BASE"/"$MODNAME" ]
 then
-    mkdir -p "$BASE"/"$MODNAME"
-    cd "$BASE"/"$MODNAME"
-    git init
-    puppet module generate --skip-interview "$USER"-"$MODNAME"
-    mv "$USER"-"$MODNAME"/* "$USER"-"$MODNAME"/.fixtures.yml "$USER"-"$MODNAME"/.gitignore  .
-    rmdir "$USER"-"$MODNAME"
+    echo "$BASE"/"$MODNAME already exists"
+    exit 1
 fi
+
+mkdir -p "$BASE"/"$MODNAME"
+cd "$BASE"/"$MODNAME"
+
+git init
+puppet module generate --skip-interview "$USER"-"$MODNAME"
+mv "$USER"-"$MODNAME"/* "$USER"-"$MODNAME"/.fixtures.yml "$USER"-"$MODNAME"/.gitignore  .
+rmdir "$USER"-"$MODNAME"
+echo "Moved $USER-$MODNAME to $MODNAME"
+git add -A
+git commit -m "Init module"
+git remote add origin "$GUSER"@"$GHOST":"$GGROUPNAME"/"$USER"-"$MODNAME".git
+
 cat - <<'_EOF' > "$BASE"/"$MODNAME"/.git/hooks/pre-commit
 #!/bin/bash
 
@@ -43,3 +60,56 @@ done < <(git diff --name-status --diff-filter=AM --cached | sed 's/^[A|M][[:spac
 exit $err
 _EOF
 chmod +x "$BASE"/"$MODNAME"/.git/hooks/pre-commit
+
+echo -en "Getting group ID for $GGROUPNAME ... "
+curl -f -k -H "Content-Type:application/json" \
+    'https://'"$GHOST"'/api/v3/groups?private_token='"$GTOKEN" \
+    > /tmp/group-json.$$ 2> /dev/null
+gid=$(perl -e '
+              use JSON;
+              use Data::Dumper;
+              my $data;
+              while(<>) { 
+                  $data .= $_
+              }
+              my @decoded = @{decode_json($data)};
+              my $found = 0;
+              foreach (@decoded) {
+                  if ($_->{"name"} eq "'"$GGROUPNAME"'") {
+                      $found = 1;
+                      print $_->{"id"};
+                  }
+              }
+              $found or die "Looks like the gitlab api call failed - no id found for group '"$GGROUPNAME"'";
+              ' /tmp/group-json.$$ )
+rm -f /tmp/group-json.$$
+echo "OK"
+
+echo -en "Creating repo on $GHOST ... "
+curl -f -k -H "Content-Type:application/json" \
+    'https://'"$GHOST"'/api/v3/projects?private_token='"$GTOKEN" \
+    -d '{ "name": "'"$USER"'-'"$MODNAME"'", "namespace_id": "'"$gid"'" }' \
+    > /tmp/repo-json.$$ 2> /dev/null
+rid=$(perl -e '
+              use JSON;
+              my $data;
+              while(<>) { 
+                  $data .= $_
+              }
+              my $decoded = decode_json($data);
+              if (defined $decoded->{"id"}) {
+                  print $decoded->{"id"} . "\n"
+              } else {
+                  die "Looks like the gitlab api call failed - no id found in /tmp/repo-json.'$$'";
+              }
+              ' /tmp/repo-json.$$ )
+rm -f /tmp/repo-json.$$
+echo "OK"
+
+echo -en "Adding webhook to $JURL ... "
+curl -f -k -H "Content-Type:application/json" \
+    'https://'"$GHOST"'/api/v3/projects/'$rid'/hooks?private_token='"$GTOKEN" \
+    -d '{ "id": "'"$rid"'", "url": "'"$JURL"'/build?token='"$JTOKEN"'", "push_events": "true" }' &> /dev/null
+echo "OK"
+
+git push -u origin master
