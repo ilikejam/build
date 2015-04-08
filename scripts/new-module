@@ -1,0 +1,45 @@
+#!/bin/bash
+set -e
+BASE=~/git/puppet-modules
+USER=dave
+
+[ $# -ne 1 ] && exit 1
+
+MODNAME=$(echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z_]//g')
+
+if [ ! -d "$BASE"/"$MODNAME" ]
+then
+    mkdir -p "$BASE"/"$MODNAME"
+    cd "$BASE"/"$MODNAME"
+    git init
+    puppet module generate --skip-interview "$USER"-"$MODNAME"
+    mv "$USER"-"$MODNAME"/* "$USER"-"$MODNAME"/.fixtures.yml "$USER"-"$MODNAME"/.gitignore  .
+    rmdir "$USER"-"$MODNAME"
+fi
+cat - <<'_EOF' > "$BASE"/"$MODNAME"/.git/hooks/pre-commit
+#!/bin/bash
+
+err=0
+while read file
+do
+    echo "Linting `pwd`/$file"
+    dos2unix "$file" &> /dev/null
+    sed -i 's/^[[:space:]]$//' "$file"
+    sed -i 's/[[:space:]][[:space:]]*$//' "$file"
+    puppet-lint --no-80chars-check --with-filename --no-class_inherits_from_params_class-check \
+        --fail-on-warnings "$file" || err=1
+    puppet parser validate "$file" || err=1
+    git add "$file"
+done < <(git diff --name-status --diff-filter=AM --cached | sed 's/^[A|M][[:space:]]*//' | egrep '\.pp$')
+
+while read file
+do
+    echo "Linting `pwd`/$file"
+    dos2unix "$file" &> /dev/null
+    erb -x -T - "$file" | ruby -c > /dev/null || err=1
+    git add "$file"
+done < <(git diff --name-status --diff-filter=AM --cached | sed 's/^[A|M][[:space:]]*//' | egrep '\.erb$')
+
+exit $err
+_EOF
+chmod +x "$BASE"/"$MODNAME"/.git/hooks/pre-commit
