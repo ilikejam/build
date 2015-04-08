@@ -1,23 +1,27 @@
 #!/bin/bash
-set -e # Don't remove
-BASE=~/git/puppet-modules # Containing directory for new module
-USER='vdc' # Module 'creator' name
+# Set up module boilerplate, git repo, gitlab remote origin, gitlab webhooks, 
+# and deploy keys for a new puppet module.
+set -e # Don't remove!
+
+# ===== Change these to suit =====
+GTOKEN='34o57vbbv5cnow45c7nt' # Your gitlab user token from your account page (secret!)
+BASE=~/git/puppet-modules     # *Containing* directory for your new module's directory
+export PERL5LIB=/cygdrive/c/Users/das18/Documents/perl5/lib/perl5 # Weird cygwin CPAN shenanigans on my laptop - probably not needed anywhere else
+USER='ilikejam' # Module 'creator' name
 GHOST='gitlab.local.net' # gitlab hostname
 GUSER='git' # gitlab user
-GGROUPNAME='myorg-puppet-mods' # Gitlab group
-GTOKEN='abcdefghijklmnopqrst' # Your gitlab user token (secret!)
-HOOKURL[0]='http://jenkins.local.net/jenkins/job/Puppet%20Code/job/puppet-lint/build?token=asimpleauthtoken'
+GGROUPNAME='ilikejam-puppet' # Gitlab group
+HOOKURL[0]='http://jenkins.local.net/jenkins/job/Puppet%20Code/job/puppet-lint/build?token=letmeinalready'
 HOOKURL[1]='http://hubot-irc.local.net:8080/gitlab/web'
-KEYNAME[0]='puppetmaster'
-KEYPUB[0]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA...'
-KEYNAME[1]='jenkins-slave'
-KEYPUB[1]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA...'
-
-
-export PERL5LIB=/cygdrive/c/Users/das18/Documents/perl5/lib/perl5 # Weird cygwin CPAN shenanigans
+# ...
+KEYNAME[0]='puppet-master'; KEYPUB[0]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA...'
+KEYNAME[1]='jenkins-build'; KEYPUB[1]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA...'
+# ...
+# ===== End =====
 
 [ $# -ne 1 ] && exit 1
 
+# module names are lower case only, and only underscores allowed
 MODNAME=$(echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z_]//g')
 
 if [ -d "$BASE"/"$MODNAME" ]
@@ -25,7 +29,6 @@ then
     echo "$BASE"/"$MODNAME already exists"
     exit 1
 fi
-
 mkdir -p "$BASE"/"$MODNAME"
 cd "$BASE"/"$MODNAME"
 
