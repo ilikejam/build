@@ -4,10 +4,15 @@ BASE=~/git/puppet-modules # Containing directory for new module
 USER='vdc' # Module 'creator' name
 GHOST='gitlab.local.net' # gitlab hostname
 GUSER='git' # gitlab user
-GGROUPNAME='my-org-puppet' # Gitlab group
-GTOKEN='abcdefghijklmnopqrs' # Your gitlab user token (secret!)
-JTOKEN='letmeinalready' # jenkins token for CI project
-JURL='http://jenkins.local.net/jenkins/job/Puppet%20Code/job/puppet-lint' # Full Jenkins project URL for CI API access
+GGROUPNAME='myorg-puppet-mods' # Gitlab group
+GTOKEN='abcdefghijklmnopqrst' # Your gitlab user token (secret!)
+HOOKURL[0]='http://jenkins.local.net/jenkins/job/Puppet%20Code/job/puppet-lint/build?token=asimpleauthtoken'
+HOOKURL[1]='http://hubot-irc.local.net:8080/gitlab/web'
+KEYNAME[0]='puppetmaster'
+KEYPUB[0]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA...'
+KEYNAME[1]='jenkins-slave'
+KEYPUB[1]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA...'
+
 
 export PERL5LIB=/cygdrive/c/Users/das18/Documents/perl5/lib/perl5 # Weird cygwin CPAN shenanigans
 
@@ -24,14 +29,17 @@ fi
 mkdir -p "$BASE"/"$MODNAME"
 cd "$BASE"/"$MODNAME"
 
-git init
-puppet module generate --skip-interview "$USER"-"$MODNAME"
+echo -en "Generating module $USER-$MODNAME ... "
+puppet module generate --skip-interview "$USER"-"$MODNAME" > /dev/null
+echo "OK"
 mv "$USER"-"$MODNAME"/* "$USER"-"$MODNAME"/.fixtures.yml "$USER"-"$MODNAME"/.gitignore  .
 rmdir "$USER"-"$MODNAME"
-echo "Moved $USER-$MODNAME to $MODNAME"
+echo -en "Initialising git repo ... "
+git init > /dev/null
 git add -A
-git commit -m "Init module"
+git commit -m "Init module" > /dev/null
 git remote add origin "$GUSER"@"$GHOST":"$GGROUPNAME"/"$USER"-"$MODNAME".git
+echo "OK"
 
 cat - <<'_EOF' > "$BASE"/"$MODNAME"/.git/hooks/pre-commit
 #!/bin/bash
@@ -106,10 +114,28 @@ rid=$(perl -e '
 rm -f /tmp/repo-json.$$
 echo "OK"
 
-echo -en "Adding webhook to $JURL ... "
-curl -f -k -H "Content-Type:application/json" \
-    'https://'"$GHOST"'/api/v3/projects/'$rid'/hooks?private_token='"$GTOKEN" \
-    -d '{ "id": "'"$rid"'", "url": "'"$JURL"'/build?token='"$JTOKEN"'", "push_events": "true" }' &> /dev/null
+for i in `seq 0 $((${#HOOKURL[@]} - 1))`
+do
+    echo -en "Adding webhook ${HOOKURL[$i]} ... "
+    curl -f -k -H "Content-Type:application/json" \
+        'https://'"$GHOST"'/api/v3/projects/'$rid'/hooks?private_token='"$GTOKEN" \
+        -d '{ "id": "'"$rid"'", "url": "'"${HOOKURL[$i]}"'", "push_events": "true" }' \
+        &> /dev/null
+    echo "OK"
+done
+
+for i in `seq 0 $((${#KEYNAME[@]} - 1))`
+do
+    echo -en "Enabling deploy key ${KEYNAME[$i]} ... "
+    curl -f -k -H "Content-Type:application/json" \
+        'https://'"$GHOST"'/api/v3/projects/'"$rid"'/keys?private_token='"$GTOKEN" \
+        -d '{ "id": "'"$rid"'", "title": "'"${KEYNAME[$i]}"'", "key": "'"${KEYPUB[$i]}"'" }' \
+        &> /dev/null
+    echo "OK"
+done
+
+echo -en "Pushing $MODNAME to $GHOST ... "
+git push -u origin master &> /dev/null
 echo "OK"
 
-git push -u origin master
+echo "Created repo at `pwd`"
