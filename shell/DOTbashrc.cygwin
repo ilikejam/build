@@ -9,6 +9,7 @@ export LESSHISTFILE
 source ~/.git-completion.bash
 source ~/.vagrant-completion.bash
 
+alias ping='/cygdrive/c/WINDOWS/system32/ping'
 alias emacs='HOME="" /cygdrive/c/Users/das18/emacs-24.3/bin/runemacs.exe'
 alias vagrant='CYGWIN=nodosfilewarning vagrant'
 alias pemacs='for go in *.pp; do emacs "$go"; done'
