@@ -1,0 +1,189 @@
+#!/bin/bash
+# Test an (r10k - puppet - hiera - vagrant) current state
+# rsync for local, r10k for remote
+# Opts:
+#     -a      : Provision VMs listed in ALLVMS below
+#     -r      : Update/download forge modules (default)
+#     -l      : Don't update/download forge modules
+#     -v <vm> : Add a vm to the list to be provisioned
+
+VPATH=~/vagrant                   # Directory your Vagrantfile lives in
+PUPPETFILE=~/git/r10k/Puppetfile  # Where to pick up the Puppetfile
+MODULES=~/git/puppet-modules      # Where your locally written modules are 
+HIERA=~/git/hieradata             # Where your hiera lives
+ALLVMS="moduletest6 moduletest7"  # List of VMs to provision with the '-a' opt
+
+set -e
+
+LOCALONLY=false
+while getopts "ahlrv:" opt
+do
+    case $opt in
+        a)
+            VMS="$ALLVMS"
+            ;;
+        l)
+            LOCALONLY=true
+            ;;
+        r)
+            LOCALONLY=false
+            ;;
+        v)
+            VMS="$VMS $OPTARG"
+            ;;
+        h)
+            echo "Read the script."
+            exit 1
+            ;;
+    esac
+done
+
+if [ ! -d "$VPATH" ]
+then
+    echo "Directory $VPATH does not exist"
+    exit 1
+fi
+if [ ! -f "$PUPPETFILE" ]
+then
+    echo "Puppetfile $PUPPETFILE does not exist"
+    exit 1
+fi
+if [ ! -d "$MODULES" ]
+then
+    echo "Directory $MODULES does not exist"
+    exit 1
+fi
+if [ ! -d "$HIERA" ]
+then
+    echo "Directory $HIERA does not exist"
+    exit 1
+fi
+
+
+# Grab current Puppetfile and drop the git repos (i.e. leave forge mods only)
+# This will break if we start using git-provided remotes. Be warned.
+forgemodules=$(sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+    | grep '^mod' \
+    | grep -v ':git[[:space:]]*=>' \
+    | awk '{split($2,a,"/"); gsub(/["'\'',]/,"",a[2]);  print a[2]}' )
+echo "Forge modules:"
+for mod in $forgemodules
+do
+    echo -e "\t"$mod
+done
+
+# Grab current Puppetfile and drop the forge repos (i.e. leave git mods only)
+# This will break if we start using git-provided remotes. Be warned.
+# Can't use r10k for the git repos as we're pre-commit/push, so cloning instead
+gitmodules=$(sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+    | grep ':git[[:space:]]*=>' \
+    | awk -F ',' '{print $1}' \
+    | sed "s/mod[[:space:]]*[\'|\"]//; s/[\'|\"][[:space:]]*$//")
+echo "Git modules:"
+for mod in  $gitmodules
+do
+    echo -e "\t"$mod
+done
+
+cd "$VPATH"
+
+if ! $LOCALONLY
+then
+    # Test basic connectivity to the forge.
+    echo -en "Testing Puppet Forge connectivity... "
+    curl -f 'https://forge.puppetlabs.com/puppetlabs/stdlib' &> /dev/null
+    echo "OK"
+
+    # Create forge-only Puppetfile for r10k
+    sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+        | grep -v ':git[[:space:]]*=>' > Puppetfile
+    r10k puppetfile install -v
+    r10k puppetfile purge -v
+fi
+
+for mod in $gitmodules
+do
+    echo -en "Syncing $mod ... "
+    rsync -a --delete "$MODULES"/"$mod" "$VPATH"/modules
+    echo "OK"
+done
+echo -en "Syncing hieradata ... "
+rsync -a --delete  "$HIERA"/ "$VPATH"/hieradata
+echo "OK"
+
+for VM in $VMS
+do
+    case `vagrant status "$VM" | grep '^'"$VM" | awk '{print $2}'` in
+        running)
+            vagrant provision "$VM"
+	    ;;
+        poweroff|aborted)
+            vagrant up --provision "$VM"
+            ;;
+        not)
+            vagrant up "$VM"
+            ;;
+        *)
+            echo "Vagrant VM $VM seems to be in a weird state, or isn't configured."
+            ;;
+    esac
+done
+
+echo -en "Generating versioned Puppetfile: "
+# Generate a versioned Puppetfile
+exec 3>&1
+exec 1>/tmp/Puppetfile.$$
+
+echo 'forge "http://forge.puppetlabs.com"' 
+echo
+export PERL5LIB=/cygdrive/c/Users/das18/Documents/perl5/lib/perl5 # Weird cygwin CPAN shenanigans
+for mod in $forgemodules
+do
+    if [ -f modules/"$mod"/metadata.json ]
+    then
+        perl -e 'use JSON;
+                     my $data;
+                     my $name;
+                     my $version;
+                     while(<>) { 
+                         $data .= $_
+                     }
+                     my $decoded = decode_json($data);
+                     $name = $decoded->{"name"};
+                     $name =~ s/-/\//;
+                     $version = $decoded->{"version"};
+                     print "mod \"" . $name . "\", " . $version . "\n"' \
+                         modules/"$mod"/metadata.json
+    elif [ -f modules/"$mod"/Modulefile ]
+    then
+        perl -e 'use Text::ParseWords;
+                     my $name;
+                     my $version;
+                     while(<>) {
+                         chomp;
+                         my @tokens = shellwords($_);
+                         if (uc($tokens[0]) eq uc("name")) {
+                             $name = $tokens[1];
+                             $name =~ s/-/\//;
+                         }
+                         if (uc($tokens[0]) eq uc("version")) {
+                             $version = $tokens[1];
+                         }
+                      }
+                      print "mod \"" . $name . "\", " . $version . "\n"' \
+                         modules/"$mod"/Modulefile
+    else
+        echo "ERROR: Can't find version for module $mod"
+    fi
+done
+echo
+for mod in $gitmodules
+do
+    cd modules/"$mod"
+    commit=`git log --pretty=format:'%H' -n 1`
+    remote=`git remote -v | awk '{if ($1 == "origin" && $NF == "(fetch)") print $2}'`
+    [ -z "$commit" -o -z "$remote" ] && exit 1
+    echo -e -n "mod '$mod',\n  :git => '$remote',\n  :commit => '$commit'\n"
+    cd ../..
+done
+echo "/tmp/Puppetfile.$$" >&3
