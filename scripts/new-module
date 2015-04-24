@@ -79,11 +79,7 @@ curl -f -k -H "Content-Type:application/json" \
 gid=$(perl -e '
               use JSON;
               use Data::Dumper;
-              my $data;
-              while(<>) { 
-                  $data .= $_
-              }
-              my @decoded = @{decode_json($data)};
+              my @decoded = @{decode_json(<>)};
               my $found = 0;
               foreach (@decoded) {
                   if ($_->{"name"} eq "'"$GGROUPNAME"'") {
@@ -103,11 +99,7 @@ curl -f -k -H "Content-Type:application/json" \
     > /tmp/repo-json.$$ 2> /dev/null
 rid=$(perl -e '
               use JSON;
-              my $data;
-              while(<>) { 
-                  $data .= $_
-              }
-              my $decoded = decode_json($data);
+              my $decoded = decode_json(<>);
               if (defined $decoded->{"id"}) {
                   print $decoded->{"id"} . "\n"
               } else {
