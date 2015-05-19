@@ -3,6 +3,7 @@
 (column-number-mode 1)
 (global-set-key [mouse-2] 'mouse-yank-at-click)
 (prefer-coding-system 'utf-8-unix)
+(show-paren-mode 1)
 
 (set-default buffer-file-coding-system 'utf-8-unix)
 (set-default default-buffer-file-coding-system 'utf-8-unix)
@@ -13,6 +14,7 @@
 (autoload 'markdown-mode "markdown-mode" "Major mode for editing Markdown files" t)
 (autoload 'gfm-mode "markdown-mode" "Major mode for editing Git Markdown files" t)
 (autoload 'puppetfile-mode "puppetfile-mode" "Major mode for editing r10k Puppefile files")
+(autoload 'powershell-mode "powershell-mode" "Major mode for editing dirty PowerShell nonsense")
 
 (require 'yaml-mode)
 (require 'web-mode)
@@ -27,6 +29,7 @@
 (add-to-list 'auto-mode-alist '("\\.yaml\\'" . yaml-mode))
 (add-to-list 'auto-mode-alist '("\\.yml\\'" . yaml-mode))
 (add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.ps1\\'" . powershell-mode))
 
 (setq org-startup-truncated nil)
 (setq select-active-regions nil)
