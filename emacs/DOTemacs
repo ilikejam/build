@@ -8,7 +8,9 @@
 (set-default buffer-file-coding-system 'utf-8-unix)
 (set-default default-buffer-file-coding-system 'utf-8-unix)
 (set-default-coding-systems 'utf-8-unix)
-(set-default-font "-outline-Courier New-normal-r-normal-normal-12-97-96-96-c-*-iso8859-1")
+;;(set-default-font "-outline-Courier New-normal-r-normal-normal-12-97-96-96-c-*-iso8859-1")
+
+(setq frame-title-format "%b - Emacs")
 
 (autoload 'puppet-mode "puppet-mode" "Major mode for editing Puppet files" t)
 (autoload 'markdown-mode "markdown-mode" "Major mode for editing Markdown files" t)
@@ -37,3 +39,9 @@
 (setq inhibit-splash-screen t)
 (setq initial-scratch-message "")
 (setq-default indent-tabs-mode nil)
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(default ((t (:family "Hack" :foundry "outline" :slant normal :weight normal :height 80 :width normal)))))
