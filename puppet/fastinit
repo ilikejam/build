@@ -1,0 +1,3 @@
+puppet agent -t --debug --trace --tags xxx_none_xxx
+puppet plugin download
+puppet agent -t --debug --trace || [ $? -eq 2]]
