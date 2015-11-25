@@ -1,20 +1,23 @@
-. $HOME/.keychain/`hostname`-sh
+[[ "$-" != *i* ]] && return
+
 export DISPLAY=:0.0
-$HOME/bin/cssh-fix-res
 export VIRTUAL_BOX_FOLDER=/cygdrive/c/Users/das18/Downloads/VBOX
 export VAGRANT_CWD='C:\Users\das18\Documents\vagrant'
-LESSHISTFILE=/dev/null
-export LESSHISTFILE
+export PERL_MB_OPT="--install_base \"/cygdrive/c/Users/das18/Documents/perl5\""
+export PERL_MM_OPT="INSTALL_BASE=/cygdrive/c/Users/das18/Documents/perl5"
+export PERL5LIB=/cygdrive/c/Users/das18/Documents/perl5/lib/perl5
+export LESSHISTFILE=/dev/null
+export HISTSIZE=-1
+export HISTFILESIZE=-1
 
+alias vagrant='CYGWIN=nodosfilewarning vagrant'
+alias pemacs='for go in *.pp; do emacs "$go"; done'
+alias ping='/cygdrive/c/WINDOWS/system32/ping'
+
+. $HOME/.keychain/`hostname`-sh
+# $HOME/bin/cssh-fix-res
+source ~/.ssh-completion.bash
 source ~/.git-completion.bash
 source ~/.vagrant-completion.bash
 
-alias ping='/cygdrive/c/WINDOWS/system32/ping'
-alias emacs='HOME="" /cygdrive/c/Users/das18/emacs-24.3/bin/runemacs.exe'
-alias vagrant='CYGWIN=nodosfilewarning vagrant'
-alias pemacs='for go in *.pp; do emacs "$go"; done'
-
-PS1='\[\e]0;\w\a\]\[\e[32m\]\u@\h \[\e[33m\]\w\[\e[0m\]\$ '
-
-PERL_MB_OPT="--install_base \"/cygdrive/c/Users/das18/Documents/perl5\""; export PERL_MB_OPT;
-PERL_MM_OPT="INSTALL_BASE=/cygdrive/c/Users/das18/Documents/perl5"; export PERL_MM_OPT;
+PS1="\[\e]0;\w\a\e[36m\]\$?@\$(date +%H:%M:%S) \[\e[32m\]\u@\h \[\e[33m\]\w\$(branch=\$(git branch 2>/dev/null | sed '/^ /d; s/^\* //' | tr -d '\n'); [[ -n \$branch ]] && echo ' ('\$branch')') \[\e[0m\]\$ "
