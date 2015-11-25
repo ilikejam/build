@@ -20,4 +20,4 @@ source ~/.ssh-completion.bash
 source ~/.git-completion.bash
 source ~/.vagrant-completion.bash
 
-PS1="\[\e]0;\w\a\e[36m\]\$?@\$(date +%H:%M:%S) \[\e[32m\]\u@\h \[\e[33m\]\w\$(branch=\$(git branch 2>/dev/null | sed '/^ /d; s/^\* //' | tr -d '\n'); [[ -n \$branch ]] && echo ' ('\$branch')') \[\e[0m\]\$ "
+PS1="\[\e]0;\w\a\e[36m\]\$?@\$(date +%H:%M:%S) \[\e[32m\]\u@\h \[\e[33m\]\$(branch=\$(git branch 2>/dev/null | sed '/^ /d; s/^\* //' | tr -d '\n'); [[ -n \$branch ]] && echo '('\$branch') ')\w \[\e[0m\]\$ "
