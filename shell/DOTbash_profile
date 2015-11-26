@@ -1,0 +1,73 @@
+# source the users bashrc if it exists
+if [ -f "${HOME}/.bashrc" ] ; then
+  source "${HOME}/.bashrc"
+fi
+
+PATH=/usr/local/bin:/usr/bin
+# PATH was:
+# /cygdrive/c/Users/das18/Documents/bin
+# /usr/local/bin
+# /usr/bin
+# /cygdrive/c/ProgramData/Oracle/Java/javapath
+# /cygdrive/c/WINDOWS/system32
+# /cygdrive/c/WINDOWS
+# /cygdrive/c/WINDOWS/System32/Wbem
+# /cygdrive/c/Program Files (x86)/Microsoft Application Virtualization Client
+# /cygdrive/c/WINDOWS/System32/WindowsPowerShell/v1.0
+# /cygdrive/c/Program Files (x86)/Intel/OpenCL SDK/2.0/bin/x86
+# /cygdrive/c/Program Files (x86)/Intel/OpenCL SDK/2.0/bin/x64
+# /cygdrive/c/Program Files/Puppet Labs/Puppet/bin
+# /cygdrive/c/HashiCorp/Vagrant/bin
+# /cygdrive/c/WINDOWS/System32/WindowsPowerShell/v1.0
+# /cygdrive/c/Program Files (x86)/Windows Kits/8.1/Windows Performance Toolkit
+# /cygdrive/c/Program Files/Intel/WiFi/bin
+# /cygdrive/c/Program Files/Common Files/Intel/WirelessCommon
+# /cygdrive/c/Program Files (x86)/Nmap
+# /usr/lib/lapack
+# /cygdrive/c/HashiCorp/Vagrant/bin
+# /cygdrive/c/Program Files/Oracle/VirtualBox
+# /cygdrive/c/Program Files (x86)/Meld
+# /cygdrive/c/Program Files/VMware/VMware OVF Tool
+# /cygdrive/c/Program Files (x86)/VMware/VMware Workstation
+# Take yer fuckin pick
+
+
+# Set PATH so it includes user's private bin if it exists
+if [ -d "${HOME}/bin" ] ; then
+  PATH="${HOME}/bin:${PATH}"
+fi
+
+# Add vagrant to PATH
+if [ -d /cygdrive/c/HashiCorp/Vagrant/bin ] ; then
+  PATH="${PATH}":/cygdrive/c/HashiCorp/Vagrant/bin
+fi
+
+# Add VBox to PATH
+if [ -d '/cygdrive/c/Program Files/Oracle/VirtualBox' ] ; then
+  PATH="${PATH}":'/cygdrive/c/Program Files/Oracle/VirtualBox'
+fi
+
+# Add ovftool to PATH
+if [ -d '/cygdrive/c/Program Files/VMware/VMware OVF Tool' ]; then
+   PATH="${PATH}":'/cygdrive/c/Program Files/VMware/VMware OVF Tool'
+fi
+
+# Add VMWare WS to PATH
+if [ -d '/cygdrive/c/Program Files (x86)/VMware/VMware Workstation' ]; then
+  PATH="${PATH}":'/cygdrive/c/Program Files (x86)/VMware/VMware Workstation'
+fi
+
+# Set MANPATH so it includes users' private man if it exists
+# if [ -d "${HOME}/man" ]; then
+#   MANPATH="${HOME}/man:${MANPATH}"
+# fi
+
+# Set INFOPATH so it includes users' private info if it exists
+# if [ -d "${HOME}/info" ]; then
+#   INFOPATH="${HOME}/info:${INFOPATH}"
+# fi
+
+export PACKER_CACHE_DIR="C:\Users\das18\packer_cache"
+
+# Slow and dirty ssh autocomplete
+complete -W "$(echo `cat ~/.ssh/known_hosts | cut -f 1 -d ' ' | sed -e s/,.*//g | uniq | grep -v "\["`; ls)" ssh
