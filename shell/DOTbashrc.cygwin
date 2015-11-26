@@ -13,6 +13,7 @@ export HISTFILESIZE=-1
 alias vagrant='CYGWIN=nodosfilewarning vagrant'
 alias pemacs='for go in *.pp; do emacs "$go"; done'
 alias ping='/cygdrive/c/WINDOWS/system32/ping'
+alias net='/cygdrive/c/WINDOWS/system32/net'
 
 . $HOME/.keychain/`hostname`-sh
 # $HOME/bin/cssh-fix-res
