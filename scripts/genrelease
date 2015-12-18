@@ -1,0 +1,207 @@
+#!/bin/bash -x
+# Generate a templatefactory release
+# 
+# Opts:
+#   -g : Push a specific gitref (should be a commit based from the *release* branch)
+
+set -e # DON'T REMOVE!
+
+R10KREPO='git@gitlab:vdc-puppet/r10k.git'
+SSPECREPO='git@gitlab:vdc-puppet/serverspec.git'
+HIERAREPO='git@gitlab:vdc-puppet/hiera.git'
+R10KDEVBRANCH='templatefactory'  # Devolopment r10k branch
+R10KRELBRANCH='rc'               # Release r10k branch
+SSPECREF='templatefactory'       # Serverspec branch/ref
+HIERAREF='templatefactory'       # Hieradata branch/ref
+KS='/var/www/html/pub/kickstart' # puppetmaster ks dir
+PENVS='/etc/puppet/environments' # puppetmaster envs dir
+PUPPETMASTER='vdcpuppet'         # Templating puppetmaster
+TPATH='/var/tmp/genrelease-tmp'  # Temp - not randomised to save bandwidth
+R10K="$TPATH/r10k"               # r10k checkout dir
+PUPPETFILE="$R10K/Puppetfile"    # Where to pick up the Puppetfile
+
+FORCE=false
+unset COMMIT
+while getopts "g:f" opt
+do
+    case $opt in
+        g)
+            COMMIT="$OPTARG" # Not necessarily a commit - any gitref
+            PREVCOMMIT="xxx-no-commit-here-dude-xxx"
+            ;;
+        *)
+            echo "Huh?"
+            exit 1
+            ;;
+    esac
+done
+shift $(($OPTIND - 1))
+
+mkdir -p "$TPATH"
+
+rm -rf -- "$R10K"
+mkdir -p "$R10K"
+git clone "$R10KREPO" "$R10K"
+cd "$R10K"
+git checkout "$R10KDEVBRANCH"
+cd "$TPATH"
+
+if [[ -z "$COMMIT" ]]
+then
+    if [ ! -f "$PUPPETFILE" ]
+    then
+        echo "Puppetfile $PUPPETFILE does not exist"
+        exit 1
+    fi
+
+    # Grab current Puppetfile and drop the git repos (i.e. leave forge mods only)
+    # This will break if we start using git-provided remotes. Be warned.
+    forgemodules=$(sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+        | grep '^mod' \
+        | grep -v ':git[[:space:]]*=>' \
+        | awk '{split($2,a,"/"); gsub(/["'\'',]/,"",a[2]);  print a[2]}' )
+
+    # Grab current Puppetfile and drop the forge repos (i.e. leave git mods only)
+    # This will break if we start using git-provided remotes. Be warned.
+    gitmodules=($(sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+        | grep ':git[[:space:]]*=>' \
+        | awk -F ',' '{print $1}' \
+        | sed "s/mod[[:space:]]*[\'|\"]//; s/[\'|\"][[:space:]]*$//"))
+    gitrefs=($(sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+        | grep ':git[[:space:]]*=>' \
+        | awk -F',' '{print $3}' | awk '{print $NF}' | sed "s/['\"]//g"))
+    gitremotes=($(sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+        | grep ':git[[:space:]]*=>' \
+        | awk -F',' '{print $2}' | awk '{print $NF}' | sed "s/['\"]//g"))
+
+    # Test basic connectivity to the forge.
+    echo -en "Testing Puppet Forge connectivity... "
+    curl -f 'https://forge.puppetlabs.com/puppetlabs/stdlib' &> /dev/null
+    echo "OK"
+
+    cd "$TPATH"
+
+    # Create forge-only Puppetfile for r10k
+    sed ':loop; /, *$/ {N; s/,[[:space:]]*\n[[:space:]]*:/, :/}; t loop ' "$PUPPETFILE" \
+        | grep -v ':git[[:space:]]*=>' > Puppetfile
+    # while loop to keep trying under random Cygwin failures
+    while ! r10k puppetfile install -v
+    do
+        :
+    done
+
+    echo 'forge "http://forge.puppetlabs.com"' > Puppetfile.$$
+    echo >> Puppetfile.$$
+    for mod in $forgemodules
+    do
+        echo -n "Versioning forge mod $mod..." 
+        if [ -f modules/"$mod"/metadata.json ]
+        then
+            perl -e 'use JSON;
+                     my $data;
+                     my $name;
+                     my $version;
+                     while(<>) { 
+                         $data .= $_
+                     }
+                     my $decoded = decode_json($data);
+                     $name = $decoded->{"name"};
+                     $name =~ s/-/\//;
+                     $version = $decoded->{"version"};
+                     print "mod \"" . $name . "\", \"" . $version . "\"\n"' \
+                         modules/"$mod"/metadata.json >> Puppetfile.$$
+        elif [ -f modules/"$mod"/Modulefile ]
+        then
+            perl -e 'use Text::ParseWords;
+                     my $name;
+                     my $version;
+                     while(<>) {
+                         chomp;
+                         my @tokens = shellwords($_);
+                         if (uc($tokens[0]) eq uc("name")) {
+                             $name = $tokens[1];
+                             $name =~ s/-/\//;
+                         }
+                         if (uc($tokens[0]) eq uc("version")) {
+                             $version = $tokens[1];
+                         }
+                      }
+                      print "mod \"" . $name . "\", " . $version . "\n"' \
+                          modules/"$mod"/Modulefile >> Puppetfile.$$
+        else
+            echo "ERROR: Can't find version for module $mod"
+        fi
+        echo " OK"
+    done
+    echo >> Puppetfile.$$
+    i=0
+    for mod in "${gitmodules[@]}"
+    do
+        echo -n "Versioning git mod $mod..."
+        shacommit=`git ls-remote "${gitremotes[$i]}" "${gitrefs[$i]}" | awk '{print $1}'`
+        [ -z "$shacommit" ] && exit 1
+        echo -e -n "mod '$mod',\n  :git => '${gitremotes[$i]}',\n  :commit => '$shacommit'\n" >> Puppetfile.$$
+        ((++i))
+        echo " OK"
+    done
+
+    # Drop in hiera commit comment
+    hieracommit=`git ls-remote "$HIERAREPO" "$HIERAREF" | awk '{print $1}'`
+    echo -e '\n# hiera at '"$hieracommit"  >> Puppetfile.$$
+
+    # Drop in hiera commit comment
+    sspeccommit=`git ls-remote "$SSPECREPO" "$SSPECREF" | awk '{print $1}'`
+    echo -e '\n# serverspec at '"$sspeccommit"  >> Puppetfile.$$
+
+    # Stage out the dev branch, process, check into the release branch
+    cd "$R10K"
+    # Check out the default branch
+    git config merge.keepTheir.driver "cp -f %B %A"
+    git checkout "$R10KDEVBRANCH"
+    # Short hash is from the development branch. Not the release branch
+    shash=$(git rev-parse --short HEAD)
+    git branch stage-from-$shash
+    git checkout stage-from-$shash
+    # Pull in versioned puppetfile
+    mv "$TPATH"/Puppetfile.$$ Puppetfile
+    mkdir -p templates
+    # Generate generic templates
+    ./mktemplates
+    git add -A
+    git commit -m "Staging release $shash"
+    git checkout "$R10KRELBRANCH"
+    git reset --hard
+    git clean -f -d
+    git merge stage-from-$shash -X theirs -m "Release from $shash at `date --rfc-3339=seconds`"
+    # Clobber temp staging branch
+    git branch -d stage-from-$shash
+    git push
+    COMMIT=`git rev-parse HEAD`
+fi
+
+cd "$R10K"
+echo -n "Checking r10k gitref exists: "
+COMMIT=$(git rev-parse "$COMMIT")
+PREVCOMMIT=$(git rev-parse "${COMMIT}~")
+
+# Push all of this crap up to the puppetmaster
+# This is being done in stages to make it easier to debug - performance is shite anyway.
+if ! ssh -q $PUPPETMASTER 'sudo -- bash -ec "[ -d '"$PENVS/$COMMIT"' ]"'
+then
+    ssh -q $PUPPETMASTER 'sudo -- bash -ec "mkdir '"$PENVS/$COMMIT"'"'
+    # Copy previous commit's modules to save some bandwidth
+    ssh -q $PUPPETMASTER 'sudo -- bash -ec "cp -alv '"$PENVS/$PREVCOMMIT/modules"' '"$PENVS"/"$COMMIT"'"' || true
+    ssh -q $PUPPETMASTER 'sudo -- bash -ec "mkdir '"$KS/$COMMIT"'"'
+    ssh -q $PUPPETMASTER 'sudo -- bash -ec "cd '"$PENVS/$COMMIT"'; git init"'
+    ssh -q $PUPPETMASTER 'sudo -- bash -ec "cd '"$PENVS/$COMMIT"'; git remote add origin git@vdcbase.bskyb.com:vdc-puppet/r10k.git"'
+    ssh -q $PUPPETMASTER 'sudo -- bash -ec "cd '"$PENVS/$COMMIT"'; git fetch origin"'
+    ssh -q $PUPPETMASTER 'sudo -- bash -ec "cd '"$PENVS/$COMMIT"'; git checkout '"$COMMIT"'"'
+    ssh -q $PUPPETMASTER 'sudo -- bash -ec "cd '"$PENVS/$COMMIT"'; ./deploy"'
+    ssh -q $PUPPETMASTER 'sudo -- bash -ec "cp '"$PENVS/$COMMIT"'/kickstart/* '"$KS"/"$COMMIT"'"'
+fi
+
+echo
+echo "INFO: Pull hiera down to $PUPPETMASTER if there have been changes"
+echo 
+echo "Commit: $COMMIT"
+# relax
