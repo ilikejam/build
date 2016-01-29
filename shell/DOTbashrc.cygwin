@@ -14,6 +14,8 @@ alias vagrant='CYGWIN=nodosfilewarning vagrant'
 alias pemacs='for go in *.pp; do emacs "$go"; done'
 alias ping='/cygdrive/c/WINDOWS/system32/ping'
 alias net='/cygdrive/c/WINDOWS/system32/net'
+alias nmap='"/cygdrive/c/Program Files (x86)/Nmap/nmap"'
+alias java='"/cygdrive/c/Program Files/Java/jre1.8.0_66/bin/java"'
 
 . $HOME/.keychain/`hostname`-sh
 # $HOME/bin/cssh-fix-res
@@ -21,4 +23,4 @@ source ~/.ssh-completion.bash
 source ~/.git-completion.bash
 source ~/.vagrant-completion.bash
 
-PS1="\[\e]0;\w\a\e[36m\]\$?@\$(date +%H:%M:%S) \[\e[32m\]\u@\h \[\e[33m\]\$(branch=\$(git branch 2>/dev/null | sed '/^ /d; s/^\* //' | tr -d '\n'); [[ -n \$branch ]] && echo '('\$branch') ')\w \[\e[0m\]\$ "
+PS1="\[\e]0;\w\a\e[1;93m\]\$?\e[0;36m\]@\$(date +%H:%M:%S) \[\e[32m\]\u@\h \[\e[33m\]\$(branch=\$(git branch 2>/dev/null | sed '/^ /d; s/^\* //' | tr -d '\n'); [[ -n \$branch ]] && echo '('\$branch') ')\w \[\e[0m\]\$ "
