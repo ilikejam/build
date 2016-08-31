@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 # Generate a templatefactory release
 # 
 # Opts:
@@ -6,9 +6,9 @@
 
 set -e # DON'T REMOVE!
 
-R10KREPO='git@gitlab:vdc-puppet/r10k.git'
-SSPECREPO='git@gitlab:vdc-puppet/serverspec.git'
-HIERAREPO='git@gitlab:vdc-puppet/hiera.git'
+R10KREPO='git@vdcbase-rw:vdc-puppet/r10k.git'
+SSPECREPO='git@vdcbase.bskyb.com:vdc-puppet/serverspec.git'
+HIERAREPO='git@vdcbase.bskyb.com:vdc-hiera/hiera.git'
 R10KDEVBRANCH='templatefactory'  # Devolopment r10k branch
 R10KRELBRANCH='rc'               # Release r10k branch
 SSPECREF='templatefactory'       # Serverspec branch/ref
@@ -16,7 +16,7 @@ HIERAREF='templatefactory'       # Hieradata branch/ref
 KS='/var/www/html/pub/kickstart' # puppetmaster ks dir
 PENVS='/etc/puppet/environments' # puppetmaster envs dir
 PUPPETMASTER='vdcpuppet'         # Templating puppetmaster
-TPATH='/var/tmp/genrelease-tmp'  # Temp - not randomised to save bandwidth
+TPATH=~/genrelease-tmp           # Temp - not randomised to save bandwidth
 R10K="$TPATH/r10k"               # r10k checkout dir
 PUPPETFILE="$R10K/Puppetfile"    # Where to pick up the Puppetfile
 
@@ -36,6 +36,8 @@ do
     esac
 done
 shift $(($OPTIND - 1))
+
+unset DISPLAY
 
 mkdir -p "$TPATH"
 
