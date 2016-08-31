@@ -1,39 +1,39 @@
-#!/bin/bash
+#!/bin/bash -x
 # Set up module boilerplate, git repo, vcdbase remote origin, vcdbase webhooks, 
 # and deploy keys for a new puppet module.
 set -e # Don't remove!
 
-BINDIR="$(dirname "${BASH_SOURCE[0]}")"
-
 # ===== Change these to suit =====
-GTOKEN='eXM1GkXb5zmMxgmhFOye' # Your gitlab user token from your account page (secret!)
+GTOKEN='kjdslifgfbfjkshlkd' # Your gitlab user token from your account page (secret!)
 BASE=`pwd`                    # *Containing* directory for your new module's directory. PWD at the mo.
 # ===== End =====
 
-# ===== Maybe change/add/remove these too if you're not us =====
-USER='myteam' # Module 'creator' name
-GHOST='gitlab' # gitlab hostname
+BINDIR="$(dirname "${BASH_SOURCE[0]}")"
+
+# ===== Maybe change/add/remove these too if you're not VDC =====
+USER='vdc' # Module 'creator' name
+GHOST='vdcbase.bskyb.com' # gitlab hostname
 GUSER='git' # gitlab user
-GGROUPNAME='myteam-puppet' # Gitlab group
-HOOKURL[0]='http://hubot:8080/gitlab/web?targets=vdc-team'
+GGROUPNAME='vdc-puppet' # Gitlab group
+HOOKURL[0]='http://ud000665.bskyb.com:8080/gitlab/web?targets=vdc-team'
 # HOOKURL[1]='http://rpmbuild.bskyb.com/jenkins/job/Puppet%20Code/job/VDC-Puppet-Lint/build?token=asimpleauthtoken'
 # ...
-KEYNAME[0]='puppetmaster'; KEYPUB[0]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAyRE7mSe4tXqaVJZozBM+XkqrzPV00eiBHOqvXHl6wbtkbmMyxx3JPZBUf1jegiQXUCC361q2atlrtXDqNcBhF1nwATaROkGxpzxwEOLkqR6nhBM0BK35O5oyCE95FwO4kBQiXR+1M84bLbrn72iNY28Wifij5cnw4JmkFkeFFzcJKPj5LK6Q0EH1fFndJU8Rf5GqMIKMyCRJSe98iwzQxAeEsezzQVRQETWFKR6nuR8N60JSiDRczkivafx2YyOgm/ZtWPvgapN8pbzU5bpvkyxvsgwqbZzAX8K2JK6/KBSOsJx2zcD1EBvT+fCQWabwFm95ZLahQn20LuuhG1s08Q== root@upbld020'
-KEYNAME[1]='jenkins'; KEYPUB[1]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAwfzDZbPAGoMDSUvN7eX82UvNPceiiUZD00dTmw3EeDXE5zm4RskMNUH22rxKGyPn3h4rR9cZR73q1oYLP/WRNz/fr3JcvHZ++I4ksxM3MCGC7gzNFKwmshwuQjkRKdjCAikpyNAyV0iHHPGog/ufCL0JS1vCp5xK5e6cGoQS9S7v97ffqThZJucGqV499PVR4ugLAf0qOWvRiyf/7WLnpZHpd2zgtwYpyIilqpL1fR5agEEcEouQuFiAqZoghjHhjeJ2RkWCaPUXuTGa6Z3l0HYcgVJppzYfcqiU+AwA6LajUCbw+mfInv4M3ZLLHSkHelW1L5MVXmbBAOVshUDsUQ== root@upmgt010'
-KEYNAME[2]='packer'; KEYPUB[2]='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDABUTbX3GfitF+bQYiCzLWTBMuDYZPrNYMkBgeY4df55uPMvUVqrf1zTGZJGboE/k6zyp7c/E85tCiFeIlOsz4RL4I/3t9cKF5cDb93E0VsBtD1SnzLG08/tqp5KGgysUEvzdy2w91ObXhH/q/WnHyG33isc08Y0P6849t33xkQzbCTxXjqASFZzQ6q+KgBzj583R/KEySOZfvjjOc/PZ52kzV7RAhvb+29ohtj/SZMdPqxWGu2AEo3f5z0E7XU3FfeggEuVTBe2CeFOIeA7DwnBhrRY8pSbM1eQWEGStUvKBpvoapRDcUKBfq3TP96Gaa6qXCk8cTYYaNR5bevCaB jenkins@udapp9e0'
+KEYNAME[0]='upbld020'; KEYPUB[0]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAyRE7mSe4tXqaVJZozBM+XkqrzPV00eiBHOqvXHl6wbtkbmMyxx3JPZBUf1jegiQXUCC361q2atlrtXDqNcBhF1nwATaROkGxpzxwEOLkqR6nhBM0BK35O5oyCE95FwO4kBQiXR+1M84bLbrn72iNY28Wifij5cnw4JmkFkeFFzcJKPj5LK6Q0EH1fFndJU8Rf5GqMIKMyCRJSe98iwzQxAeEsezzQVRQETWFKR6nuR8N60JSiDRczkivafx2YyOgm/ZtWPvgapN8pbzU5bpvkyxvsgwqbZzAX8K2JK6/KBSOsJx2zcD1EBvT+fCQWabwFm95ZLahQn20LuuhG1s08Q== root@upbld020'
+KEYNAME[1]='upmgt010'; KEYPUB[1]='ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAwfzDZbPAGoMDSUvN7eX82UvNPceiiUZD00dTmw3EeDXE5zm4RskMNUH22rxKGyPn3h4rR9cZR73q1oYLP/WRNz/fr3JcvHZ++I4ksxM3MCGC7gzNFKwmshwuQjkRKdjCAikpyNAyV0iHHPGog/ufCL0JS1vCp5xK5e6cGoQS9S7v97ffqThZJucGqV499PVR4ugLAf0qOWvRiyf/7WLnpZHpd2zgtwYpyIilqpL1fR5agEEcEouQuFiAqZoghjHhjeJ2RkWCaPUXuTGa6Z3l0HYcgVJppzYfcqiU+AwA6LajUCbw+mfInv4M3ZLLHSkHelW1L5MVXmbBAOVshUDsUQ== root@upmgt010'
+KEYNAME[2]='udapp9e0'; KEYPUB[2]='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDABUTbX3GfitF+bQYiCzLWTBMuDYZPrNYMkBgeY4df55uPMvUVqrf1zTGZJGboE/k6zyp7c/E85tCiFeIlOsz4RL4I/3t9cKF5cDb93E0VsBtD1SnzLG08/tqp5KGgysUEvzdy2w91ObXhH/q/WnHyG33isc08Y0P6849t33xkQzbCTxXjqASFZzQ6q+KgBzj583R/KEySOZfvjjOc/PZ52kzV7RAhvb+29ohtj/SZMdPqxWGu2AEo3f5z0E7XU3FfeggEuVTBe2CeFOIeA7DwnBhrRY8pSbM1eQWEGStUvKBpvoapRDcUKBfq3TP96Gaa6qXCk8cTYYaNR5bevCaB jenkins@udapp9e0'
 # ...
 # ===== End =====
 
 if [ $# -ne 1 ]
 then
-    echo "Provide a name for the module (without the myteam- prefix)"
+    echo "Provide a name for the module (without the vdc- prefix)"
     exit 1
 fi
 
 # module names are lower case only, and only underscores allowed
 MODNAME=$(echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z_]//g')
 
-if ! which convert &> /dev/null
+if ! which /usr/bin/convert &> /dev/null
 then
     echo "Could not find 'convert' binary - install ImageMagick"
     exit 1
@@ -41,6 +41,21 @@ fi
 if ! which uudecode &> /dev/null
 then
     echo "Could not find uudecode"
+    exit 1
+fi
+if ! which puppet &> /dev/null
+then
+    echo "Could not find puppet"
+    exit 1
+fi
+if ! which git &> /dev/null
+then
+    echo "Could not find git"
+    exit 1
+fi
+if ! which curl &> /dev/null
+then
+    echo "Could not find curl"
     exit 1
 fi
 
@@ -56,7 +71,7 @@ echo -en "Generating module $USER-$MODNAME ... "
 puppet module generate --skip-interview "$USER"-"$MODNAME" > /dev/null
 echo "OK"
 shopt -s dotglob
-mv "$USER"-"$MODNAME"/* "$USER"-"$MODNAME"/.gitignore  .
+mv -f "$USER"-"$MODNAME"/* "$USER"-"$MODNAME"/.gitignore . || true
 rmdir "$USER"-"$MODNAME"
 mkdir templates
 mkdir files
@@ -331,7 +346,8 @@ ODoxMyswMTowMFme6XoAAAAASUVORK5CYII=
 ====
 _EOF
 fi
-/usr/bin/convert "$BINDIR"/.skylabs.png -fill '#'$(printf "%0*x" 2 $(($RANDOM * 255 / 32767)))$(printf "%0*x" 2 $(($RANDOM * 255 / 32767)))$(printf "%0*x\n" 2 $(($RANDOM * 255 / 32767))), -tint 100 ./logo.png && echo OK
+cd "$OLDPWD"/"$MODNAME"
+/usr/bin/convert "$BINDIR"/.skylabs.png -fill '#'$(printf "%0*x" 2 $(shuf -i0-255 -n1))$(printf "%0*x" 2 $(shuf -i0-255 -n1))$(printf "%0*x\n" 2 $(shuf -i0-255 -n1)), -tint 150 ./logo.png && echo OK
 echo -en "Initialising git repo ... "
 touch manifests/install.pp
 touch manifests/config.pp
@@ -353,7 +369,7 @@ do
     dos2unix "$file" &> /dev/null
     sed -i 's/^[[:space:]]$//' "$file"
     sed -i 's/[[:space:]][[:space:]]*$//' "$file"
-    puppet-lint --no-80chars-check --with-filename --no-class_inherits_from_params_class-check \
+    puppet-lint --no-140chars-check --with-filename --no-class_inherits_from_params_class-check \
         --fail-on-warnings "$file" || err=1
     puppet parser validate "$file" || err=1
     git add "$file"
@@ -385,7 +401,7 @@ print JSON->new->pretty->encode($decoded);' metadata.json > metadata.json.new
 mv -f metadata.json.new metadata.json
 git add metadata.json
 
-if grep 'concat::fragment' manifests/* > /dev/null
+if grep -r 'concat::fragment' manifests/* > /dev/null
 then
     for file in files/* templates/*
     do
@@ -397,7 +413,7 @@ _EOF
 chmod +x "$BASE"/"$MODNAME"/.git/hooks/pre-commit
 
 echo -en "Getting group ID for $GGROUPNAME ... "
-curl -f -k -H "Content-Type:application/json" \
+curl -f -k --http1.1 -H "Content-Type:application/json" \
     'https://'"$GHOST"'/api/v3/groups?private_token='"$GTOKEN" \
     > /tmp/group-json.$$ 2> /dev/null
 gid=$(perl -e '
@@ -417,7 +433,7 @@ rm -f /tmp/group-json.$$
 echo "OK"
 
 echo -en "Creating repo on $GHOST ... "
-curl -f -k -H "Content-Type:application/json" \
+curl -f -k --http1.1 -H "Content-Type:application/json" \
     'https://'"$GHOST"'/api/v3/projects?private_token='"$GTOKEN" \
     -d '{ "name": "'"$USER"'-'"$MODNAME"'", "namespace_id": "'"$gid"'" }' \
     > /tmp/repo-json.$$ 2> /dev/null
@@ -435,8 +451,7 @@ echo "OK"
 
 for i in `seq 0 $((${#HOOKURL[@]} - 1))`
 do
-    echo -en "Adding webhook ${HOOKURL[$i]} ... "
-    curl -f -k -H "Content-Type:application/json" \
+    curl -f -k --http1.1 -H "Content-Type:application/json" \
         'https://'"$GHOST"'/api/v3/projects/'$rid'/hooks?private_token='"$GTOKEN" \
         -d '{ "id": "'"$rid"'", "url": "'"${HOOKURL[$i]}"'", "push_events": "true" }' \
         &> /dev/null
@@ -446,15 +461,27 @@ done
 for i in `seq 0 $((${#KEYNAME[@]} - 1))`
 do
     echo -en "Enabling deploy key ${KEYNAME[$i]} ... "
-    curl -f -k -H "Content-Type:application/json" \
+    curl -f -k --http1.1 -H "Content-Type:application/json" \
         'https://'"$GHOST"'/api/v3/projects/'"$rid"'/keys?private_token='"$GTOKEN" \
         -d '{ "id": "'"$rid"'", "title": "'"${KEYNAME[$i]}"'", "key": "'"${KEYPUB[$i]}"'" }' \
-        &> /dev/null
+        &> /dev/null || true
     echo "OK"
 done
 
 echo -en "Pushing $MODNAME to $GHOST ... "
 git push -u origin master &> /dev/null
+echo "OK"
+
+echo -en "Checking out templatefactory ... "
+git checkout -b templatefactory &> /dev/null
+echo "OK"
+
+echo -en "Pushing templatefactory ... "
+git push --set-upstream origin templatefactory &> /dev/null
+echo "OK"
+
+echo -en "Protecting templatefactory branch ... "
+curl -f -k --http1.1 -X PUT -H "PRIVATE-TOKEN: $GTOKEN" 'https://'"$GHOST"'/api/v3/projects/'"$rid"'/repository/branches/templatefactory/protect'
 echo "OK"
 
 echo "Created repo at `pwd`"
