@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -x
+cd "$WORKSPACE" || exit 1
+[[ -d r10k ]] || exit 1
+err=false
+puppet-lint --no-80chars-check --no-class_inherits_from_params_class-check --fail-on-warnings . || err=true
+set +x
+while read file
+do
+    echo "Parsing $file"
+    puppet parser validate "$file" || err=true
+done < <(find . -name '*.pp' -type f | sort)
+while read file
+do
+    echo -n "Parsing $file: "
+    erb -x -T - "$file" | ruby -c || err=true
+done < <(find . -name '*.erb' -type f | sort )
+$err && exit 1
+exit 0

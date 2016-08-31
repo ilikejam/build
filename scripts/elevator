@@ -1,0 +1,225 @@
+#!/bin/bash
+# Script to upload a vmx/ovf/ova to vcenter and import the template into vcac
+
+VCO_HOST=vdcorchestration-prd
+INV_FLOW=799c1961-e3c2-4ded-9a4c-36d7c4b4c30f
+MARK_FLOW=84c24a03-6cb8-467e-96a2-8e41f047ffa5
+DM=thin
+INVENTORY=true
+CENTOSHACK=false
+TAG=true
+GITLAB=vdcbase.bskyb.com
+R10KPROJ="vdc-puppet%2Fr10k"
+GITLABTOKEN=sldfhsudfhlbf
+EXITONERR=true
+
+while getopts "sdptnxgeDP" opt
+do
+    case "$opt" in
+        'x')
+            # DEV vsphere
+            VCES="HHEVCNPSP55"
+            DCES="Hemel"
+            CLUS="HDESX41"
+            NETS="vdc-Template"
+            STOR="S56ESXVMFS181"
+            vf=templates/staging
+            unset folder
+            prefix=DEV
+            CENTOSHACK=true
+            VCO_HOST="e2orchestration-lab"
+            TAG=false
+            ;;
+        'D')
+            # DAT Stage
+            VCES="HHEVCNVDC55"
+            DCES="HHE-E2VDC-DEV"
+            CLUS="S57VMC0027"
+            NETS="vdc-Template"
+            STOR="S57ESXVMFST03"
+            folder=Non-Prod/
+            vf=templates/live-dat
+            prefix=DAT
+            VCO_HOST="vdcorchestration-dev"
+            TAG=false
+            ;;
+        
+        'P')
+            # PRD Stage
+            VCES="S57VCSVDC01"
+            DCES="S57-VDC-VC6"
+            CLUS="S57VMC0040"
+            NETS="vdc-Template"
+            STOR="S57ESXVMFST04"
+            folder=Prod/
+            vf=templates/live-prd
+            prefix=PRD
+            VCO_HOST="vdcorchestration-dev"
+            TAG=false
+            ;;
+        's')
+            # Live vsphere, staging
+            VCES=("HHEVCPE2V55"   "SLUVCPE2V55"   "ONXVCPE2V55"   "SCEVCPE2V55"   )
+            DCES=("HHE-E2VDC"     "SLU-E2VDC"     "ONX-E2VDC"     "SCE-E2VDC"     )
+            CLUS=("S56VMC0016"    "S57VMC0017"    "S52VMC0002"    "S53VMC0007"    )
+            NETS=("vdc-Template"  "vdc-Template"  "vdc-Template"  "vdc-Template"  )
+            STOR=("S56ESXVMFST03" "S57ESXVMFST03" "S52ESXVMFST05" "S53ESXVMFST03" )
+            vf=templates/staging
+            folder=Non-Prod/
+            prefix=STA
+            TAG=false
+            ;;
+        'd')
+            # Live vsphere, DAT
+            VCES=("HHEVCPE2V55"   "SLUVCPE2V55"   "ONXVCPE2V55"   "SCEVCPE2V55"   )
+            DCES=("HHE-E2VDC"     "SLU-E2VDC"     "ONX-E2VDC"     "SCE-E2VDC"     )
+            CLUS=("S56VMC0016"    "S57VMC0017"    "S52VMC0002"    "S53VMC0007"    )
+            NETS=("vdc-Template"  "vdc-Template"  "vdc-Template"  "vdc-Template"  )
+            STOR=("S56ESXVMFST03" "S57ESXVMFST03" "S52ESXVMFST05" "S53ESXVMFST03" )
+            vf=templates/live-dat
+            folder=Non-Prod/
+            prefix=DAT
+            ;;
+        'p')
+            # Live vsphere, production
+            VCES=("HHEVCPE2V55"   "SLUVCPE2V55"   "ONXVCPE2V55"   "SCEVCPE2V55"   )
+            DCES=("HHE-E2VDC"     "SLU-E2VDC"     "ONX-E2VDC"     "SCE-E2VDC"     )
+            CLUS=("S56VMC0014"    "S57VMC0005"    "S52VMC0011"    "S53VMC0012"    )
+            NETS=("vdc-Template"  "vdc-Template"  "vdc-Template"  "vdc-Template"  )
+            STOR=("S56ESXVMFST05" "S57ESXVMFST04" "S52ESXVMFST04" "S53ESXVMFST04" )
+            vf=templates/live-prd
+            folder=Prod/
+            prefix=PRD
+            ;;
+        't')
+            DM=eagerZeroedThick
+            ;;
+        'n')
+            INVENTORY=false
+            ;;
+        'g')
+            TAG=false
+            ;;
+        'e')
+            EXITONERR=false
+            ;;
+        *)
+            echo "huh?"
+            exit 1
+            ;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+TEMPLATE="$1"
+if ! [[ -f "$TEMPLATE" ]]
+then
+    echo "Could not find template file $TEMPLATE"
+    exit 1
+fi
+[[ -z $VMWUSER ]] && VMWUSER=$(whoami)
+if [[ $VMWUSER == jenkins ]]
+then
+    echo -n "Enter AD username: "
+    read VMWUSER
+fi
+if [[ -z $PASS ]]
+then
+    echo -n "Enter $VMWUSER AD Password: "
+    read -s PASS
+    echo
+fi
+
+if [ $prefix == 'DAT' -o $prefix == 'PRD' ] && [[ $TEMPLATE == *lws* ]]
+then
+    echo -n "LWS template detected - is this part of an LWS official release cycle? [yes|NO] : "
+    read lwsgo
+    [[ $lwsgo != yes ]] && exit 132
+fi
+
+TEMPLATENAME="$prefix-$(basename $(basename $(basename "$TEMPLATE" .ova) .ovf) .vmx)"
+
+echo "Using $TEMPLATE"
+
+if $CENTOSHACK
+then
+    case `basename "$TEMPLATE"` in
+        centos-6*)
+            sed 's/^guestos =.*/guestos = "rhel6-64"/' "$TEMPLATE" > "$TEMPLATE".hack.vmx
+            TEMPLATE="$TEMPLATE".hack.vmx
+            ;;
+        centos-7*)
+            sed 's/^guestos =.*/guestos = "rhel7-64"/' "$TEMPLATE" > "$TEMPLATE".hack.vmx
+            TEMPLATE="$TEMPLATE".hack.vmx
+            ;;
+    esac
+fi
+
+i=0; while [ $i -lt ${#VCES[@]} ]
+do
+    {   echo "Starting transfer: ${VCES[$i]}/${DCES[$i]}/host/${folder}${CLUS[$i]} - ${STOR[$i]}/$vf"
+        ovftool -q --noSSLVerify -vf=$vf --network=${NETS[$i]} -dm=$DM -ds=${STOR[$i]} -n="$TEMPLATENAME" \
+            "$TEMPLATE" vi:///"$VMWUSER":"$PASS"@${VCES[$i]}/${DCES[$i]}/host/"$folder"/${CLUS[$i]} \
+            || echo "FAILED: ${VCES[$i]}/${DCES[$i]}/host/${folder}${CLUS[$i]} - ${STOR[$i]}/$vf"
+    } &
+    ((i++))
+done
+wait
+
+export GOVC_USERNAME="$VMWUSER"
+export GOVC_PASSWORD="$PASS"
+export GOVC_INSECURE=1
+unset GOVC_DATASTORE
+unset GOVC_DATACENTER
+
+echo -n "Marking as template..."
+i=0; while [ $i -lt ${#VCES[@]} ]
+do
+    govc vm.markastemplate -u "https://${VCES[$i]}/sdk" -dc="${DCES[$i]}" -vm.ipath "${DCES[$i]}/vm/$vf/${TEMPLATENAME}" || echo "Error: ${VCES[$i]}/${DCES[$i]}/vm/$vf/${TEMPLATENAME} mark-as-template-failed" &
+    ((i++))
+done
+wait
+echo " complete"
+
+if $INVENTORY
+then
+    INVAPILOC=`curl -k -v -H "Content-Type: application/json" -X POST -u "$VMWUSER:$PASS" \
+               --data '{"parameters": [ { "value": { "string": { "value": "'"$TEMPLATENAME"'" } }, "type": "string", "name": "templateName", "scope": "local" } ] }' \
+               https://${VCO_HOST}:8281/vco/api/workflows/${INV_FLOW}/executions/ 2>&1 > /dev/null | \
+               grep '< Location: https' | dos2unix | awk '{print $3}'`
+    if [ -n "$INVAPILOC" ]
+    then
+        echo -n "Template registration running"
+        while [[ `curl -k -v -H "Accept: application/json" -u "$VMWUSER:$PASS" "$INVAPILOC"state/ 2> /dev/null | perl -e 'use JSON; my $data; while(<>) { $data .= $_ } my $decoded = decode_json($data); my $value = $decoded->{"value"}; print $value'` == "running" ]]
+        do
+            echo -n .
+            sleep 1
+        done
+        rstat=$(curl -k -v -H "Accept: application/json" -u "$VMWUSER:$PASS" "$INVAPILOC"state/ 2> /dev/null | perl -e 'use JSON; my $data; while(<>) { $data .= $_ } my $decoded = decode_json($data); my $value = $decoded->{"value"}; print $value')
+        echo " "$rstat
+        if [[ $rstat != "completed" ]]
+        then
+            echo "ERROR: Template registration failed"
+            $EXITONERR && exit 1
+        fi
+    else
+        echo "Template registration could not be started"
+    fi
+fi
+
+if $TAG
+then
+    exec 9> /tmp/elevator.lock
+    while ! flock -n 9
+    do
+        sleep 1
+    done
+    echo -n "Tagging r10k repo... "
+    gitref=${TEMPLATENAME##*-}
+    curl -f -k -H "Content-Type:application/json" 'https://'"$GITLAB"'/api/v3/projects/'"$R10KPROJ"'/repository/tags?private_token='"$GITLABTOKEN" -d '{"tag_name": "'"$TEMPLATENAME"'" , "ref": "'"$gitref"'" }' &> /dev/null
+    [ $? -eq 0 ] && echo OK || echo -e "FAILED.\n\nWARNING: add r10k tag manually.\n"
+    flock -u -n 9
+fi
+
+curl -X POST 'http://10.107.24.5:8080/hubot/say' -d message="Template uploaded: $TEMPLATENAME" -d room=vdc-templatefactory &> /dev/null
+
+echo "Template name: $TEMPLATENAME"

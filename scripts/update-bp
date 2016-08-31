@@ -1,0 +1,51 @@
+#!/bin/bash
+VCO_HOST=vdcorchestration-prd
+BPUPDATE_FLOW=5b6f298b-210e-42ce-8619-f72aa9ac6159
+
+if [ $# -ne 2 ]
+then
+    echo "Usage: $0 <template> <blueprint>"
+    exit 1
+fi
+
+[[ -z $VMWUSER ]] && VMWUSER=$(whoami)
+if [[ $VMWUSER == jenkins ]]
+then
+    echo -n "Enter AD username: "
+    read VMWUSER
+fi
+if [[ -z $PASS ]]
+then
+    echo -n "Enter $VMWUSER AD Password: "
+    read -s PASS
+    echo
+fi
+
+TEMPLATENAME=$1
+BLUEPRINTNAME=$2
+
+APILOC=`curl -k -v -H "Content-Type: application/json" -X POST -u "$VMWUSER:$PASS" \
+        --data '{"parameters": [ \
+                                { "value": { "string": { "value": "'"$TEMPLATENAME"'" } },  "type": "string", "name": "cloneFrom",     "scope": "local" }, \
+                                { "value": { "string": { "value": "'"$BLUEPRINTNAME"'" } }, "type": "string", "name": "blueprintName", "scope": "local" } \
+                               ] }' \
+        https://${VCO_HOST}:8281/vco/api/workflows/${BPUPDATE_FLOW}/executions/ 2>&1 > /dev/null | \
+        grep '< Location: https' | dos2unix | awk '{print $3}'`
+
+echo -n "$TEMPLATENAME / $BLUEPRINTNAME running"
+while [[ $(curl -k -v -H "Accept: application/json" -u "$VMWUSER:$PASS" "$APILOC"state/ 2> /dev/null | \
+           perl -e 'use JSON; my $data; while(<>) { $data .= $_ } my $decoded = decode_json($data); my $value = $decoded->{"value"}; print $value') == "running" ]]
+do
+    echo -n .
+    sleep 1
+    ((++i))
+done
+echo
+
+result=$(curl -k -v -H "Accept: application/json" -u "$VMWUSER:$PASS" "$APILOC"state/ 2> /dev/null | \
+         perl -e 'use JSON; my $data; while(<>) { $data .= $_ } my $decoded = decode_json($data); my $value = $decoded->{"value"}; print $value')
+if [[ $result != 'completed' ]]
+then
+    echo "ERR: $TEMPLATENAME / $BLUEPRINTNAME - $result"
+    exit 1
+fi

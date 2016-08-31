@@ -1,0 +1,7 @@
+#!/bin/bash -xe
+
+DFS='/mnt/s4vdc/linuxTemplateFactory'
+COMMIT=`cat commit.last`
+SCOMMIT=`cat scommit.last`
+rm -rf /dev/shm/"$JOB_NAME"
+echo "Template is: $DFS/$JOB_NAME/output-vmware-iso.$SCOMMIT/$TEMPLATE-$SCOMMIT.vmx"

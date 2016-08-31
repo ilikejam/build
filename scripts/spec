@@ -1,0 +1,45 @@
+#!/bin/bash -xe
+
+DFS='/mnt/s4vdc/linuxTemplateFactory'
+ROOTPASS='VeEPh3r3!'
+TESTMEM=3072
+MINMEM=1024
+
+err=0
+if [ ! -d serverspec/.git ]
+then
+    git clone git@vdcbase.bskyb.com:vdc-puppet/serverspec.git
+fi
+cd serverspec
+git reset --hard
+git clean -d -f
+git fetch
+git checkout origin/templatefactory
+cd ..
+COMMIT=`cat commit.last`
+SCOMMIT=`cat scommit.last`
+VMX=/dev/shm/"$JOB_NAME"/output-vmware-iso/"$TEMPLATE"-"$SCOMMIT".vmx
+rm -f ss.tar.gz ./ss.out ./ss.err ./trace
+tar czvf ss.tar.gz serverspec
+sed -i 's/^memsize = .*/memsize = "'"$TESTMEM"'"/' "$VMX"
+sed -i 's/^remotedisplay.vnc.enabled = .*/remotedisplay.vnc.enabled = "TRUE"/' "$VMX"
+vmrun start "$VMX" nogui
+sleep 5
+vmrun -gu root -gp "$ROOTPASS" CopyFileFromHostToGuest "$VMX" ss.tar.gz /root/ss.tar.gz
+vmrun -gu root -gp "$ROOTPASS" CopyFileFromHostToGuest "$VMX" ~/scripts/ss.bash /root/ss.bash
+vmrun -gu root -gp "$ROOTPASS" runProgramInGuest       "$VMX" /root/ss.bash "$TEMPLATE" || err=1
+set +e
+vmrun -gu root -gp "$ROOTPASS" CopyFileFromGuestToHost "$VMX" /root/ss.out ./ss.out
+vmrun -gu root -gp "$ROOTPASS" CopyFileFromGuestToHost "$VMX" /root/ss.err ./ss.err
+vmrun -gu root -gp "$ROOTPASS" CopyFileFromGuestToHost "$VMX" /var/lib/puppet/state/graphs/resources.dot ./resources.dot
+vmrun -gu root -gp "$ROOTPASS" CopyFileFromGuestToHost "$VMX" /var/lib/puppet/state/graphs/relationships.dot ./relationships.dot
+vmrun -gu root -gp "$ROOTPASS" CopyFileFromGuestToHost "$VMX" /var/lib/puppet/state/graphs/expanded_relationships.dot ./expanded_relationships.dot
+cat ./ss.err
+cat ./ss.out
+if [ $err -eq 0 ]
+then
+    vmrun stop "$VMX"
+    rm -rf /dev/shm/"$JOB_NAME"
+    echo "Template is: $DFS/$JOB_NAME/output-vmware-iso.$SCOMMIT/$TEMPLATE-$SCOMMIT.vmx"
+fi
+exit $err

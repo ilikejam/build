@@ -1,0 +1,47 @@
+#!/bin/bash -ex
+
+if [[ -z $RELEASE ]]
+then
+    echo -n "Enter CoreOS release {stable|beta|alpha}: "
+    read RELEASE
+    echo
+fi
+case $RELEASE in
+    stable|beta|alpha)
+        :   
+        ;;
+    *)
+        echo "Error: RELEASE must be one of {stable|beta|alpha}"
+        ;;
+esac
+
+VERSION=$(curl https://$RELEASE.release.core-os.net/amd64-usr/current/version.txt | grep '^COREOS_VERSION=' | awk -F'=' '{print $2}')
+DFS=/mnt/s4vdc/magma # DO NOT UNSET THIS
+VMX="coreos_production_vmware_${VERSION}"
+URL="https://${RELEASE}.release.core-os.net/amd64-usr/current/coreos_production_vmware_ova.ova"
+curl -L -o "$VMX".ova "$URL"
+ovftool --maxVirtualHardwareVersion=10 --lax "${VMX}".ova "${VMX}".vmx
+rm -f "$VMX".ova
+
+base64=$(base64 -w 0 << _EOF 
+#cloud-config
+coreos:
+  units:
+    - name: grub-config.service
+      command: "start"
+      content: |
+        [Service]
+        ExecStart=/bin/bash -c "echo 'set linux_append=\"biosdevname=0 net.ifnames=0\"' >> /usr/share/oem/grub.cfg"
+_EOF
+)
+echo 'guestinfo.coreos.config.data = "'"${base64}"'"' >> "${VMX}".vmx
+echo 'guestinfo.coreos.config.data.encoding = "base64"' >> "${VMX}".vmx
+vmrun start "${VMX}".vmx nogui
+sleep 120
+vmrun stop "${VMX}".vmx
+sed -i 's/^virtualhw\.version.*/virtualhw.version = "10"/' "${VMX}".vmx
+
+[ -d "${DFS}/${VMX}/" ] && rm -rf "${DFS}/${VMX}/"
+mkdir -p "${DFS}/${VMX}/"
+mv * "${DFS}/${VMX}"
+echo "Image is: ${DFS}/${VMX}/${VMX}.vmx"

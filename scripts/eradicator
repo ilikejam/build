@@ -1,0 +1,96 @@
+#!/bin/bash
+# Script to destroy a VM (template) from vcenter
+
+while getopts "sdpxm" opt
+do
+    case "$opt" in 
+        'm')
+            unset prefix
+            ;;
+        'x')
+            # DEV vsphere
+            VCES="HHEVCNPSP55"
+            DCES="Hemel"
+            vf=templates/staging
+            prefix=DEV-
+            ;;
+        'D')
+            # DAT Stage
+            VCES="HHEVCNVDC55"
+            DCES="HHE-E2VDC-DEV"
+            vf=templates/live-dat
+            prefix=DAT
+            ;;
+        
+        'P')
+            # PRD Stage
+            VCES="S57VCSVDC01"
+            DCES="S57-VDC-VC6"
+            vf=templates/live-prd
+            prefix=PRD
+            ;;
+        's')
+            # Live vsphere, staging
+            VCES=("HHEVCPE2V55"   "SLUVCPE2V55"   "ONXVCPE2V55"   "SCEVCPE2V55")
+            DCES=("HHE-E2VDC"     "SLU-E2VDC"     "ONX-E2VDC"     "SCE-E2VDC"  )
+            vf=templates/staging
+            prefix=STA-
+            ;;
+        'd')
+            # Live vsphere, DAT
+            VCES=("HHEVCPE2V55"   "SLUVCPE2V55"   "ONXVCPE2V55"   "SCEVCPE2V55")
+            DCES=("HHE-E2VDC"     "SLU-E2VDC"     "ONX-E2VDC"     "SCE-E2VDC"  )
+            vf=templates/live-dat
+            prefix=DAT-
+            ;;
+        'p')
+            # Live vsphere, production
+            VCES=("HHEVCPE2V55"   "SLUVCPE2V55"   "ONXVCPE2V55"   "SCEVCPE2V55")
+            DCES=("HHE-E2VDC"     "SLU-E2VDC"     "ONX-E2VDC"     "SCE-E2VDC"  )
+            vf=templates/live-prd
+            prefix=PRD-
+            ;;
+        *)
+            echo "huh?"
+            exit 1
+            ;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+VM="${1#$prefix}"
+
+if ! type govc &> /dev/null
+then
+    echo "Error: govc not found"
+    exit 1
+fi
+
+[[ -z $VMWUSER ]] && VMWUSER=$(whoami)
+if [[ $VMWUSER == jenkins ]]
+then
+    echo -n "Enter AD username: "
+    read VMWUSER
+fi
+if [[ -z $PASS ]]
+then
+    echo -n "Enter $VMWUSER AD Password: "
+    read -s PASS
+    echo
+fi
+
+export GOVC_USERNAME="$VMWUSER"
+export GOVC_PASSWORD="$PASS"
+
+unset GOVC_DATASTORE
+unset GOVC_DATACENTER
+export GOVC_INSECURE=1
+
+curl -X POST 'http://10.107.24.5:8080/hubot/say' -d message="Removing template: ${prefix}${VM}" -d room=vdc-templatefactory &> /dev/null
+
+i=0
+while [ $i -lt ${#VCES[@]} ]
+do
+    govc vm.destroy -u "https://${VCES[$i]}/sdk" -dc="${DCES[$i]}" -vm.ipath "${DCES[$i]}/vm/$vf/${prefix}${VM}" || echo "Error: ${VCES[$i]}/${DCES[$i]}/vm/$vf/${prefix}${VM} failed"
+    ((i++))
+done
+

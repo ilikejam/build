@@ -1,0 +1,27 @@
+#!/bin/bash -xe
+
+DFS='/mnt/s4vdc/linuxTemplateFactory'
+R10K="$WORKSPACE"/r10k
+cd "$R10K"/templates
+COMMIT=`git rev-parse HEAD`
+SCOMMIT=`git rev-parse --short HEAD`
+sed -i 's/DEPLOYFIXMECOMMIT/'"$COMMIT"'/'         "$TEMPLATE".pack
+sed -i 's/DEPLOYFIXMESHORTCOMMIT/'"$SCOMMIT"'/'   "$TEMPLATE".pack
+sed -i 's/DEPLOYFIXMEPUPPETHOST/'"$PUPPETHOST"'/' "$TEMPLATE".pack
+vmrun list | grep /dev/shm/"$JOB_NAME" | while read vm
+do
+    vmrun stop "$vm"
+done
+rm -rf /dev/shm/"$JOB_NAME"
+mkdir -p /dev/shm/"$JOB_NAME"
+cd /dev/shm/"$JOB_NAME"
+ln -sf ~/packer_cache .
+cp -a "$R10K" .
+PACKER_LOG=1 packer build "$R10K"/templates/"$TEMPLATE".pack
+mkdir -p "$DFS"/"$JOB_NAME"
+rm -rf "$DFS"/"$JOB_NAME"/output-vmware-iso.$SCOMMIT
+cp -a output-vmware-iso "$DFS"/"$JOB_NAME"/output-vmware-iso.$SCOMMIT
+echo $SCOMMIT > "$WORKSPACE"/scommit.last
+echo $COMMIT > "$WORKSPACE"/commit.last
+cd "$DFS"/"$JOB_NAME"
+ls -dt output-vmware-iso.* | tail -n +2 | xargs rm -rf --

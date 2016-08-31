@@ -1,0 +1,89 @@
+#!/bin/bash -xe
+export cloudclient=~/cloudclient-3.4.1-3517387/bin/cloudclient.sh
+
+if [[ $1 != '-l' ]]
+then
+    $cloudclient vra catalog list --pageSize 99999 --export catalog --format CSV
+    awk -F',' '{print $1}' catalog  | egrep -v '^i|^$' | awk '{print "vra catalog detail --id " $1 "  --export " $1 " --format JSON" }' | sort | uniq > ccscript
+    $cloudclient script ccscript
+fi
+if [ $(ls *-*-*-*-* | wc -l) -ne $(wc -l < ccscript) ]
+then
+    echo "blueprints file and blueprints file list are not the same"
+    exit 1
+fi
+awk -F',' '{print $1}' catalog  | grep -v '^i' | grep -v '^$' | while read id
+do
+    perl -e '
+        use strict;
+        use warnings;
+        use JSON;
+        my $json;
+        my $clonefrom = "";
+        my $provisionerid = "";
+        my $buildprofile = "";
+        my $sparksup = "_DEFAULT";
+        while (<>) {
+            $json = $json . $_;
+        }
+        my $decoded = decode_json($json);
+        my $blueprint = $decoded->{"catalogItem"}{"name"};
+        if (exists $decoded->{"form"}{"catalogProperties"}) {
+            for (@{$decoded->{"form"}{"catalogProperties"}}) {
+                if ( $_->{"key"} eq "__clonefrom" ) {
+                    $clonefrom = $_->{"value"};
+                }
+            }
+            for (@{$decoded->{"form"}{"catalogProperties"}}) {
+                if ( $_->{"key"} eq "CloneFrom" ) {
+                    $clonefrom = $_->{"value"};
+                }
+                if ( $_->{"key"} eq "ExternalWFStubs.MachineProvisioned" ) {
+                    $provisionerid = $_->{"value"};
+                }
+                if ( $_->{"key"} eq "ExternalWFStubs.MachineProvisioned.spark_supportGroup" ) {
+                    $sparksup = $_->{"value"};
+                }
+            }
+            print $blueprint . "|" . $clonefrom . "|" . $provisionerid . "|" . $sparksup . "\n";
+        }' $id || true
+done | sort > blueprints
+sed -i 's/5af50ba6-6f19-4b29-a8a8-72fff575d1f1/Templated Linux old/;
+        s/3524ff04-0394-48db-adee-4925ea06f9d4/Templated Linux/;
+        s/f193671a-9cc0-4035-9014-a54366e17afe/Corp Windows/;
+        s/6412d8c6-54bd-47bf-bdf9-362c1af1a0e0/Corp Windows DMZ/;
+        s/479746d8-2977-4f31-b27e-18d867610d3b/DNS Registration Only/;
+        s/753445c4-edd9-4977-a2e6-2c9fbb722e65/Elements Windows/;
+        s/648bcdca-09ef-4380-b4e0-1636bac1cac3/SkyStore Windows DMZ/;
+       ' blueprints
+$cloudclient vra iaas machinetemplate list --pageSize 99999 --format CSV --export alltemplates
+cat blueprints  | awk -F'|' '{print $2}' | sort | uniq | sed '/^$/d' > inuse
+egrep -v '^Id,|^$' alltemplates | awk -F, '{print $2}' | sort | uniq > alltemplates.sorted
+cat blueprints
+cat inuse | sed 's/^/INUSE:/'
+comm -1 -3 inuse alltemplates.sorted | sed 's/^/NOTINUSE:/'
+comm -2 -3 inuse alltemplates.sorted | sed 's/^/NOTEMPLATE:/'
+GIT_SSL_NO_VERIFY=true git clone 'https://vdcbase.bskyb.com/vdc-puppet/r10k.git'
+cd r10k
+git checkout rc
+paste \
+    <(cat ../blueprints | grep vdc-template | grep -v vdc-template-windows | \
+        awk -F'|' '{print $2}' | awk -F'-' '{print $NF}' | \
+        xargs -L1 git show -s --format="%ct %cr" | sed '/^$/d') \
+    <(cat ../blueprints | grep vdc-template | grep -v vdc-template-windows | \
+        awk -F'|' '{print $1}') \
+    | sort -rn | sed 's/[0-9]*//'
+cd ..
+rm -rf -- r10k
+GIT_SSL_NO_VERIFY=true git clone 'https://vdcbase.bskyb.com/vdc-puppet-windows/r10k.git'
+cd r10k
+git checkout release
+paste \
+    <(cat ../blueprints | grep vdc-template-windows | \
+        awk -F'|' '{print $2}' | awk -F'-' '{print $NF}' | \
+        xargs -L1 git show -s --format="%ct %cr" | sed '/^$/d') \
+    <(cat ../blueprints | grep vdc-template-windows | \
+        awk -F'|' '{print $1}') \
+    | sort -rn | sed 's/[0-9]*//'
+cd ..
+rm -rf -- r10k

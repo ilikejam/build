@@ -1,0 +1,17 @@
+#!/bin/bash -xe
+
+GITREF=${GITREF:-rc}
+
+R10K="$WORKSPACE"/r10k
+mkdir -p "$R10K"
+if ! [ -d "$R10K"/.git ]
+then
+    cd "$R10K"/..
+    git clone git@vdcbase.bskyb.com:vdc-puppet/r10k.git
+fi
+cd "$R10K"
+git reset --hard
+git clean -d -f
+git fetch
+git checkout $GITREF
+git branch | grep " $GITREF$" && git pull || true
